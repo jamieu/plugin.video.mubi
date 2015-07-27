@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<strings>
+  <!-- Plugin name -->
+  <string id="30000">MUBI</string>
+
+  <!-- Settings dialog strings -->
+  <string id="32001">MUBI Settings</string>
+  <string id="32011">Username/Email</string>
+  <string id="32012">Password</string>
+  <string id="32013">Debug Mode</string>
+</strings>
