@@ -51,13 +51,13 @@ class Mubi(object):
         self._logger.debug("Logging in as user '%s', auth token is '%s'" % (username, auth_token))
         
         landing_page = self._session.post(self._mubi_urls["session"], data=session_payload)
-        self._userid = BS(landing_page.content).find("a", "header-icon").get("href").split("/")[-1]
+        self._userid = BS(landing_page.content).find("a", "link -image").get("href").split("/")[-1]
 
         self._logger.debug("Login succesful, user ID is '%s'" % self._userid)
 
     def now_showing(self):
-        #<ol class="now-showing-grid">
-        # <li class="film-media film-tile now-showing-mosaic-item">
+        #<ol class="list-now-showing">
+        # <li class="film-tile film-media item -item-1">
         #    <img class="film-thumb" src="***w856/the-idiots.jpg***">
         #    <div class="film-tile-inner">
         #        <a href="/films/the-idiots" class="film-link">
@@ -72,7 +72,7 @@ class Mubi(object):
         # </li>
         #<ol>
         page = self._session.get(self._mubi_urls["nowshowing"])
-        items = [x for x in BS(page.content).findAll("li", {"class": "film-media film-tile now-showing-mosaic-item"})]
+        items = [x for x in BS(page.content).findAll("li", {"class": re.compile('film-tile film-media item -item-*')})]
         films = []
         for x in items:
 
