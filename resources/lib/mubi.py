@@ -78,7 +78,7 @@ class Mubi(object):
 
             # core 
             # added ' ' space to start of " app-play-film play-film" 7/12/2015
-            mubi_id   = x.find('a', {"class": " app-play-film play-film"}).get("data-filmid")
+            mubi_id   = x.find('a', {"class": "  app-play-film play-film"}).get("data-filmid")
             title     = x.find('a', {"class": "film-title tile-text-link"}).text
             artwork   = x.find('img', {"class": "film-thumb"}).get("src")
             
