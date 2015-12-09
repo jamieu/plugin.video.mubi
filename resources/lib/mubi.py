@@ -19,7 +19,7 @@ class Mubi(object):
                  "director_year":  re.compile(r"^(.+), (\d+)$")
                }
     _mubi_urls = {
-                  "login":      urljoin(_URL_MUBI_SECURE, "login"),
+                  "login":      urljoin(_URL_MUBI_SECURE, "session/new"),
                   "session":    urljoin(_URL_MUBI_SECURE, "session"),
                   "nowshowing": urljoin(_URL_MUBI, "films/showing"),
                   "video":      urljoin(_URL_MUBI, "films/%s/secure_url"),
