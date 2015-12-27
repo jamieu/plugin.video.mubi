@@ -16,7 +16,9 @@ class Mubi(object):
     _URL_MUBI_SECURE  = "https://mubi.com"
     _USER_AGENT       = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_6_8) AppleWebKit/537.13+ (KHTML, like Gecko) Version/5.1.7 Safari/534.57.2"
     _regexps = { "watch_page":  re.compile(r"^.*/watch$"),
-                 "director_year":  re.compile(r"^(.+), (\d+)$")
+                 "director_year":  re.compile(r"^(.+), (\d+)$"),
+                 "director_year_ns":  re.compile(r"^(.+)(\d{4})$"),
+                 "artwork":  re.compile(r".*background-image:url\(([^)]+)\).*")
                }
     _mubi_urls = {
                   "login":      urljoin(_URL_MUBI_SECURE, "login"),
@@ -55,6 +57,28 @@ class Mubi(object):
 
         self._logger.debug("Login succesful, user ID is '%s'" % self._userid)
 
+    def get_fotd(self, page):
+        fotd = BS(page.content).find("section", {"class": re.compile('film-of-the-day')})
+        mubi_id       = fotd.find('a', {"class": "  m-icon-play m-play-button play"}).get("data-filmid")
+        title         = fotd.find('div', {"class": "body"}).find('a', {"class": "link"}).text
+        artwork_style = fotd.find('div', {"class": "still visible-sm m-full-background"}).get("style")
+        artwork       = self._regexps["artwork"].match(artwork_style).group(1)
+        director_year = fotd.find("h2", {"class": "director-year condensed-upper"})
+        director      = director_year.find("span").text
+        #No separator so this gets the last four digits
+        year          = self._regexps["director_year_ns"].match(director_year.text).group(2)
+        listview_title = u'{0} ({1})'.format(title, year)
+        metadata = Metadata(
+            director=director,
+            year=year,
+            duration=None,
+            country=None,
+            plotoutline='Synopsis (not yet implemented)',
+            plot=""
+        )
+        f = Film(listview_title, mubi_id, artwork, metadata)
+        return f
+
     def now_showing(self):
         #<ol class="list-now-showing">
         # <li class="film-tile film-media item -item-1">
@@ -72,8 +96,10 @@ class Mubi(object):
         # </li>
         #<ol>
         page = self._session.get(self._mubi_urls["nowshowing"])
-        items = [x for x in BS(page.content).findAll("li", {"class": re.compile('film-tile film-media item -item-*')})]
         films = []
+        #get FOTD
+        films.append(self.get_fotd(page))
+        items = [x for x in BS(page.content).findAll("li", {"class": re.compile('film-tile film-media item -item-*')})]
         for x in items:
 
             # core 
