@@ -15,8 +15,7 @@ class Mubi(object):
     _URL_MUBI         = "http://mubi.com"
     _URL_MUBI_SECURE  = "https://mubi.com"
     _USER_AGENT       = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_6_8) AppleWebKit/537.13+ (KHTML, like Gecko) Version/5.1.7 Safari/534.57.2"
-    _regexps = { "watch_page":  re.compile(r"^.*/watch$"),
-                 "director_year":  re.compile(r"^(.+), (\d+)$")
+    _regexps = { "watch_page":  re.compile(r"^.*/watch$")
                }
     _mubi_urls = {
                   "login":      urljoin(_URL_MUBI_SECURE, "login"),
@@ -72,28 +71,26 @@ class Mubi(object):
         # </li>
         #<ol>
         page = self._session.get(self._mubi_urls["nowshowing"])
-        items = [x for x in BS(page.content).findAll("li", {"class": re.compile('film-tile film-media item -item-*')})]
         films = []
+        items = [x for x in BS(page.content).findAll("li", {"itemtype": "http://schema.org/Movie"})]
         for x in items:
 
             # core 
-            # added ' ' space to start of " app-play-film play-film" 7/12/2015
-            mubi_id   = x.find('a', {"class": "  app-play-film play-film"}).get("data-filmid")
-            title     = x.find('a', {"class": "film-title tile-text-link"}).text
-            artwork   = x.find('img', {"class": "film-thumb"}).get("src")
+            mubi_id   = x.find('a', {"data-filmid": True}).get("data-filmid")
+            title     = x.find('span', {"itemprop": "name"}).text
+            artwork   = x.find('img', {"itemprop": "image"}).get("src")
             
-            # year, director and remaining
-            director_year = x.find("div", {"class": "director-year"}).text
-            director = self._regexps["director_year"].match(director_year).group(1)
-            year = self._regexps["director_year"].match(director_year).group(2)
+            # director
+            director = x.find("div", {"class": "director-year"}).text
 
             # format a title with the year included for list_view
-            listview_title = u'{0} ({1})'.format(title, year)
+			#listview_title = u'{0} ({1})'.format(title, year)
+            listview_title = title
 
             # metadata - ideally need to scrape this from the film page or a JSON API
             metadata = Metadata(
                 director=director, 
-                year=year, 
+                year=None, 
                 duration=None, 
                 country=None, 
                 plotoutline='Synopsis (not yet implemented)',
