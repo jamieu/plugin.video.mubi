@@ -74,7 +74,7 @@ class Mubi(object):
             director = meta.find('a', {"itemprop": "director"}).parent.text
 
             # country-year
-            country_year = meta.find('span', {"class": "full-width-tile__year-country light-on-dark"}).text
+            country_year = meta.find('span', "now-showing-tile-director-year__year-country").text
             cyMatch = self._regexps["country_year"].match(country_year)
             if cyMatch:
                 country = cyMatch.group(1)
