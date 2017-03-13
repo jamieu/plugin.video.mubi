@@ -122,26 +122,11 @@ class Mubi(object):
             films.append(f)
         return films
 
-    def is_film_available(self, name):
+    def enable_film(self, name):
         # Sometimes we have to load a prescreen page first before we can retrieve the film's secure URL
         # ie. https://mubi.com/films/lets-get-lost/prescreen --> https://mubi.com/films/lets-get-lost/watch
         self._session.head(self._mubi_urls["prescreen"] % name, allow_redirects=True)
-        return True
-
-        #if not self._session.get(self._mubi_urls["video"] % name):
-        #    prescreen_page = self._session.head(self._mubi_urls["prescreen"] % name, allow_redirects=True)
-        #    if not prescreen_page:
-        #        raise Exception("Oops, something went wrong while scraping :(")
-        #    elif self._regexps["watch_page"].match(prescreen_page.url):
-        #        return True
-        #    else:
-        #        availability = BS(prescreen_page.content).find("div", "film_viewable_status ").text
-        #        return not "Not Available to watch" in availability
-        #else:
-        #    return True
 
     def get_play_url(self, name):
-        if not self.is_film_available(name):
-            raise Exception("This film is not available.")
         return self._session.get(self._mubi_urls["video"] % name).content
 

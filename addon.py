@@ -26,6 +26,7 @@ def index():
 
 @plugin.route('/play/<identifier>')
 def play_film(identifier):
+    mubi.enable_film(identifier)
     return plugin.set_resolved_url(mubi.get_play_url(identifier))
 
 
