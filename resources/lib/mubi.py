@@ -12,8 +12,7 @@ Film      = namedtuple('Film', ['title', 'mubi_id', 'artwork', 'metadata'])
 Metadata  = namedtuple('Metadata', ['title', 'director', 'year', 'duration', 'country', 'plotoutline', 'plot', 'overlay'])
 
 class Mubi(object):
-    _URL_MUBI         = "http://mubi.com"
-    _URL_MUBI_SECURE  = "https://mubi.com"
+    _URL_MUBI         = "https://mubi.com"
     _USER_AGENT       = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_6_8) AppleWebKit/537.13+ (KHTML, like Gecko) Version/5.1.7 Safari/534.57.2"
     _regexps = {
         "watch_page":  re.compile(r"^.*/watch$"),
@@ -21,8 +20,8 @@ class Mubi(object):
         "country_year":  re.compile(r"(.*)\, ([0-9]{4})")
     }
     _mubi_urls = {
-        "login":      urljoin(_URL_MUBI_SECURE, "login"),
-        "session":    urljoin(_URL_MUBI_SECURE, "session"),
+        "login":      urljoin(_URL_MUBI, "login"),
+        "session":    urljoin(_URL_MUBI, "session"),
         "nowshowing": urljoin(_URL_MUBI, "films/showing"),
         "video":      urljoin(_URL_MUBI, "films/%s/secure_url"),
         "prescreen":  urljoin(_URL_MUBI, "films/%s/watch"),
