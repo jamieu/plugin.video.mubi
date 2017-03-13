@@ -16,19 +16,19 @@ class Mubi(object):
     _URL_MUBI_SECURE  = "https://mubi.com"
     _USER_AGENT       = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_6_8) AppleWebKit/537.13+ (KHTML, like Gecko) Version/5.1.7 Safari/534.57.2"
     _regexps = {
-	            "watch_page":  re.compile(r"^.*/watch$"),
-                "image_url":  re.compile(r"\((.*)\)"),
-                "country_year":  re.compile(r"(.*)\, ([0-9]{4})")
-               }
+        "watch_page":  re.compile(r"^.*/watch$"),
+        "image_url":  re.compile(r"\((.*)\)"),
+        "country_year":  re.compile(r"(.*)\, ([0-9]{4})")
+    }
     _mubi_urls = {
-                  "login":      urljoin(_URL_MUBI_SECURE, "login"),
-                  "session":    urljoin(_URL_MUBI_SECURE, "session"),
-                  "nowshowing": urljoin(_URL_MUBI, "films/showing"),
-                  "video":      urljoin(_URL_MUBI, "films/%s/secure_url"),
-                  "prescreen":  urljoin(_URL_MUBI, "films/%s/watch"),
-                  "filmdetails": urljoin(_URL_MUBI, "films/%s"),
-                  "logout":     urljoin(_URL_MUBI, "logout"),
-                 }
+        "login":      urljoin(_URL_MUBI_SECURE, "login"),
+        "session":    urljoin(_URL_MUBI_SECURE, "session"),
+        "nowshowing": urljoin(_URL_MUBI, "films/showing"),
+        "video":      urljoin(_URL_MUBI, "films/%s/secure_url"),
+        "prescreen":  urljoin(_URL_MUBI, "films/%s/watch"),
+        "filmdetails": urljoin(_URL_MUBI, "films/%s"),
+        "logout":     urljoin(_URL_MUBI, "logout"),
+    }
 
     def __init__(self):
         self._logger = logging.getLogger('mubi.Mubi')
@@ -49,9 +49,9 @@ class Mubi(object):
                            'session[password]': password,
                            'x': 0,
                            'y': 0}
-                           
+
         self._logger.debug("Logging in as user '%s', auth token is '%s'" % (username, auth_token))
-        
+
         r = self._session.post(self._mubi_urls["session"], data=session_payload)
         if r.status_code == 302:
             self._logger.debug("Login succesful")
@@ -64,7 +64,7 @@ class Mubi(object):
         items = [x for x in BS(page.content).findAll("article")]
         for x in items:
 
-            # core 
+            # core
             mubi_id   = x.find('a', {"data-filmid": True}).get("data-filmid")
             title     = x.find('h1').text
 
@@ -83,7 +83,7 @@ class Mubi(object):
                 country = None
                 year = None
 
-			# artwork
+            # artwork
             artStyle = x.find('div', {"style": True}).get("style")
             urlMatch = self._regexps["image_url"].search(artStyle)
             if urlMatch:
@@ -105,11 +105,11 @@ class Mubi(object):
 
             # metadata - ideally need to scrape this from the film page or a JSON API
             metadata = Metadata(
-                title=title, 
-                director=director, 
-                year=year, 
-                duration=None, 
-                country=country, 
+                title=title,
+                director=director,
+                year=year,
+                duration=None,
+                country=country,
                 plotoutline="",
                 plot=synopsis,
                 overlay=6 if hd else 0
@@ -121,11 +121,11 @@ class Mubi(object):
         return films
 
     def is_film_available(self, name):
-        # Sometimes we have to load a prescreen page first before we can retrieve the film's secure URL  
-        # ie. https://mubi.com/films/lets-get-lost/prescreen --> https://mubi.com/films/lets-get-lost/watch  
-        self._session.head(self._mubi_urls["prescreen"] % name, allow_redirects=True) 
+        # Sometimes we have to load a prescreen page first before we can retrieve the film's secure URL
+        # ie. https://mubi.com/films/lets-get-lost/prescreen --> https://mubi.com/films/lets-get-lost/watch
+        self._session.head(self._mubi_urls["prescreen"] % name, allow_redirects=True)
         return True
-        
+
         #if not self._session.get(self._mubi_urls["video"] % name):
         #    prescreen_page = self._session.head(self._mubi_urls["prescreen"] % name, allow_redirects=True)
         #    if not prescreen_page:
