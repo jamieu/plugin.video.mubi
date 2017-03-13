@@ -90,15 +90,11 @@ class Mubi(object):
             else:
                 artwork = None
 
-            # format a title with the year included for list_view
-            #listview_title = u'{0} ({1})'.format(title, year)
-            listview_title = title
 
             synopsis = x.find('p').text
 
             if x.find('i', {"aria-label": "HD"}):
                 hd = True
-                listview_title = title + " [HD]"
             else:
                 hd = False
 
@@ -113,6 +109,12 @@ class Mubi(object):
                 plot=synopsis,
                 overlay=6 if hd else 0
             )
+
+            # format a title with the year included for list_view
+            #listview_title = u'{0} ({1})'.format(title, year)
+            listview_title = title
+            if hd:
+                listview_title += " [HD]"
 
             f = Film(listview_title, mubi_id, artwork, metadata)
 
