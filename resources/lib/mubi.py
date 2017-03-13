@@ -15,7 +15,6 @@ class Mubi(object):
     _URL_MUBI         = "https://mubi.com"
     _USER_AGENT       = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_6_8) AppleWebKit/537.13+ (KHTML, like Gecko) Version/5.1.7 Safari/534.57.2"
     _regexps = {
-        "watch_page":  re.compile(r"^.*/watch$"),
         "image_url":  re.compile(r"\((.*)\)"),
         "country_year":  re.compile(r"(.*)\, ([0-9]{4})")
     }
