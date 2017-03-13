@@ -90,8 +90,9 @@ class Mubi(object):
             else:
                 artwork = None
 
+            plotoutline = x.find('p').text
 
-            synopsis = x.find('p').text
+            plot = "" # TODO: access film page to read the full plot
 
             if x.find('i', {"aria-label": "HD"}):
                 hd = True
@@ -105,8 +106,8 @@ class Mubi(object):
                 year=year,
                 duration=None,
                 country=country,
-                plotoutline="",
-                plot=synopsis,
+                plotoutline=plotoutline,
+                plot=plot,
                 overlay=6 if hd else 0
             )
 
