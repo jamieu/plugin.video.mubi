@@ -16,12 +16,12 @@ mubi.login(plugin.get_setting("username", unicode), plugin.get_setting("password
 def index():
     films = mubi.now_showing()
     items = [{
-			'label': film.title, 
-			'is_playable': True,
-            'path': plugin.url_for('play_film', identifier=film.mubi_id),
-          	'thumbnail': film.artwork,
-          	'info': film.metadata._asdict()
-    	} for film in films] 
+        'label': film.title,
+        'is_playable': True,
+        'path': plugin.url_for('play_film', identifier=film.mubi_id),
+        'thumbnail': film.artwork,
+        'info': film.metadata._asdict()
+    } for film in films]
     return items
 
 @plugin.route('/play/<identifier>')

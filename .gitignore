@@ -1,2 +1,8 @@
+/packaging/
+
+*.pyc
+*.pyo
+*.pwd
+
 # Ignore Mac DS_Store files
 .DS_Store
