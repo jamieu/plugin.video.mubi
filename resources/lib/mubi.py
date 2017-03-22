@@ -12,21 +12,19 @@ Film      = namedtuple('Film', ['title', 'mubi_id', 'artwork', 'metadata'])
 Metadata  = namedtuple('Metadata', ['title', 'director', 'year', 'duration', 'country', 'plotoutline', 'plot', 'overlay'])
 
 class Mubi(object):
-    _URL_MUBI         = "http://mubi.com"
-    _URL_MUBI_SECURE  = "https://mubi.com"
+    _URL_MUBI         = "https://mubi.com"
     _USER_AGENT       = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_6_8) AppleWebKit/537.13+ (KHTML, like Gecko) Version/5.1.7 Safari/534.57.2"
     _regexps = {
-        "watch_page":  re.compile(r"^.*/watch$"),
-        "image_url":  re.compile(r"\((.*)\)"),
+        "image_url":  re.compile(r"url\((.*)\)"),
         "country_year":  re.compile(r"(.*)\, ([0-9]{4})")
     }
     _mubi_urls = {
-        "login":      urljoin(_URL_MUBI_SECURE, "login"),
-        "session":    urljoin(_URL_MUBI_SECURE, "session"),
-        "nowshowing": urljoin(_URL_MUBI, "films/showing"),
-        "video":      urljoin(_URL_MUBI, "films/%s/secure_url"),
-        "prescreen":  urljoin(_URL_MUBI, "films/%s/watch"),
-        "filmdetails": urljoin(_URL_MUBI, "films/%s"),
+        "login":      urljoin(_URL_MUBI, "login"),
+        "session":    urljoin(_URL_MUBI, "session"),
+        "nowshowing": urljoin(_URL_MUBI, "showing"),
+        "video":      urljoin(_URL_MUBI, "showing/%s/watch"),
+        "prescreen":  urljoin(_URL_MUBI, "showing/%s/prescreen"),
+        "filmdetails": urljoin(_URL_MUBI, "showing/%s"),
         "logout":     urljoin(_URL_MUBI, "logout"),
     }
 
@@ -63,12 +61,17 @@ class Mubi(object):
         films = []
         items = [x for x in BS(page.content).findAll("article")]
         for x in items:
+            mubi_id_elem = x.find('a', {"data-filmid": True})
+
+            if not mubi_id_elem:
+                # either a "Coming soon" or a "Just left" movie
+                continue
 
             # core
-            mubi_id   = x.find('a', {"data-filmid": True}).get("data-filmid")
-            title     = x.find('h1').text
+            mubi_id   = mubi_id_elem.get("data-filmid")
+            title     = x.find('h2').text
 
-            meta = x.find('h2');
+            meta = x.find('h3');
 
             # director
             director = meta.find('a', {"itemprop": "director"}).parent.text
@@ -91,15 +94,12 @@ class Mubi(object):
             else:
                 artwork = None
 
-            # format a title with the year included for list_view
-            #listview_title = u'{0} ({1})'.format(title, year)
-            listview_title = title
+            plotoutline = x.find('p').text
 
-            synopsis = x.find('p').text
+            plot = "" # TODO: access film page to read the full plot
 
             if x.find('i', {"aria-label": "HD"}):
                 hd = True
-                listview_title = title + " [HD]"
             else:
                 hd = False
 
@@ -110,36 +110,31 @@ class Mubi(object):
                 year=year,
                 duration=None,
                 country=country,
-                plotoutline="",
-                plot=synopsis,
+                plotoutline=plotoutline,
+                plot=plot,
                 overlay=6 if hd else 0
             )
+
+            # format a title with the year included for list_view
+            #listview_title = u'{0} ({1})'.format(title, year)
+            listview_title = title
+            if hd:
+                listview_title += " [HD]"
 
             f = Film(listview_title, mubi_id, artwork, metadata)
 
             films.append(f)
         return films
 
-    def is_film_available(self, name):
+    def enable_film(self, name):
         # Sometimes we have to load a prescreen page first before we can retrieve the film's secure URL
-        # ie. https://mubi.com/films/lets-get-lost/prescreen --> https://mubi.com/films/lets-get-lost/watch
+        # ie. https://mubi.com/showing/lets-get-lost/prescreen --> https://mubi.com/showing/lets-get-lost/watch
         self._session.head(self._mubi_urls["prescreen"] % name, allow_redirects=True)
-        return True
-
-        #if not self._session.get(self._mubi_urls["video"] % name):
-        #    prescreen_page = self._session.head(self._mubi_urls["prescreen"] % name, allow_redirects=True)
-        #    if not prescreen_page:
-        #        raise Exception("Oops, something went wrong while scraping :(")
-        #    elif self._regexps["watch_page"].match(prescreen_page.url):
-        #        return True
-        #    else:
-        #        availability = BS(prescreen_page.content).find("div", "film_viewable_status ").text
-        #        return not "Not Available to watch" in availability
-        #else:
-        #    return True
 
     def get_play_url(self, name):
-        if not self.is_film_available(name):
-            raise Exception("This film is not available.")
-        return self._session.get(self._mubi_urls["video"] % name).content
+        video_page_url = self._mubi_urls["video"] % name
+        video_page = self._session.get(video_page_url).content
+        video_data_elem = BS(video_page).find(attrs={"data-secure-url": True})
+        video_data_url = video_data_elem.get("data-secure-url")
+        return video_data_url
 
