@@ -204,6 +204,6 @@ class Mubi(object):
             clean_url = video_data_url
         else:
             clean_url = matched_url.group(0)
-        self._logger.debug("Got video url as: '%s'" % video_data_url)
-        return video_data_url
+        self._logger.debug("Got video url as: '%s'" % clean_url)
+        return clean_url
 
