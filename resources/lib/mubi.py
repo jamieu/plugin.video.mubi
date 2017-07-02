@@ -188,12 +188,15 @@ class Mubi(object):
     def enable_film(self, name):
         # Sometimes we have to load a prescreen page first before we can retrieve the film's secure URL
         # ie. https://mubi.com/showing/lets-get-lost/prescreen --> https://mubi.com/showing/lets-get-lost/watch
+        self._logger.debug("Enabling film: '%s'" % name)
         self._session.head(self._mubi_urls["prescreen"] % name, allow_redirects=True)
+        self._logger.debug("Finished enabling film: '%s'" % name)
 
     def get_play_url(self, name):
         video_page_url = self._mubi_urls["video"] % name
         video_page = self._session.get(video_page_url).content
         video_data_elem = BS(video_page).find(attrs={"data-secure-url": True})
         video_data_url = video_data_elem.get("data-secure-url")
+        self._logger.debug("Got video url as: '%s'" % video_data_url)
         return video_data_url
 
