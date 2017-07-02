@@ -8,28 +8,32 @@ from urlparse import urljoin
 from collections import namedtuple
 from BeautifulSoup import BeautifulSoup as BS
 
-Film      = namedtuple('Film', ['title', 'mubi_id', 'artwork', 'metadata'])
-Metadata  = namedtuple('Metadata', ['title', 'director', 'year', 'duration', 'country', 'plotoutline', 'plot', 'overlay'])
+Film      = namedtuple('Film', ['title', 'mubi_id', 'artwork', 'metadata','stream_info'])
+Metadata  = namedtuple('Metadata', ['title', 'director', 'year', 'duration', 'country', 'plotoutline', 'plot', 'overlay', 'genre', 'originaltitle', 'rating', 'votes', 'castandrole'])
 
 class Mubi(object):
     _URL_MUBI         = "https://mubi.com"
-    _USER_AGENT       = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_6_8) AppleWebKit/537.13+ (KHTML, like Gecko) Version/5.1.7 Safari/534.57.2"
+    _USER_AGENT       = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36"
     _regexps = {
         "image_url":  re.compile(r"url\((.*)\)"),
         "country_year":  re.compile(r"(.*)\, ([0-9]{4})")
     }
     _mubi_urls = {
-        "login":      urljoin(_URL_MUBI, "login"),
+        "login":      urljoin(_URL_MUBI, "session/new"),
         "session":    urljoin(_URL_MUBI, "session"),
         "nowshowing": urljoin(_URL_MUBI, "showing"),
         "video":      urljoin(_URL_MUBI, "showing/%s/watch"),
         "prescreen":  urljoin(_URL_MUBI, "showing/%s/prescreen"),
         "filmdetails": urljoin(_URL_MUBI, "showing/%s"),
+        "filmcast": urljoin(_URL_MUBI, "films/%s/cast"),
         "logout":     urljoin(_URL_MUBI, "logout"),
     }
 
     def __init__(self):
         self._logger = logging.getLogger('mubi.Mubi')
+        self._logger.setLevel(logging.DEBUG)
+        handler = logging.StreamHandler()
+        self._logger.addHandler(handler)
         self._session = requests.session()
         self._session.headers = {'User-Agent': self._USER_AGENT}
 
@@ -44,17 +48,60 @@ class Mubi(object):
         session_payload = {'utf8': '✓',
                            'authenticity_token': auth_token,
                            'session[email]': username,
-                           'session[password]': password,
-                           'x': 0,
-                           'y': 0}
+                           'session[password]': password }
 
         self._logger.debug("Logging in as user '%s', auth token is '%s'" % (username, auth_token))
 
-        r = self._session.post(self._mubi_urls["session"], data=session_payload)
+        r = self._session.post(self._mubi_urls["session"], data=session_payload, allow_redirects=False)
         if r.status_code == 302:
             self._logger.debug("Login succesful")
         else:
             self._logger.error("Login failed")
+        return r.status_code
+
+    def get_cast(self,filmid):
+        page = self._session.get(self._mubi_urls["filmcast"] % filmid, allow_redirects=True).text
+        memb = BS(page).findAll('span', { 'class': 'cast-member-media__info' })
+        cast = []
+        for m in memb:
+            name = m.find( 'span', { 'class': 'cast-member-media__header condensed-header' }).text
+            role = m.find( 'span', { 'class': 'cast-member-media__subheader condensed-upper' }).text
+            cast.append((name,role))
+        return cast
+
+    def film_info(self,filmid):
+        page = self._session.get(self._mubi_urls["filmdetails"] % filmid, allow_redirects=True).text
+        section_meta = BS(page).find('section', { 'class': 'film-show__row film-show__row--bottom' })
+        film_details = {}
+
+        film_details['genre'] = section_meta.find('div', { 'class': 'film-show__genres' }).text
+
+        film_details['duration'] = int(section_meta.find('time', { 'itemprop': 'duration' }).text)*60
+        
+        alt_title = section_meta.find('h2', { 'class': 'film-show__titles__title-alt condensed-header' })
+        if alt_title:
+            film_details['originaltitle'] = alt_title.text
+        else:
+            film_details['originaltitle'] = None
+
+        sect_descriptions = BS(page).findAll('section', { 'class': 'film-show__descriptions__row' })
+        synopsis = sect_descriptions[0].find('p').text
+        our_take = sect_descriptions[1].find('p').text
+
+        film_details['plot'] = "Synopsis: %s\n\nOur take: %s" % (synopsis, our_take)
+
+        film_details['rating'] = float(BS(page).find('div', { 'class': 'average-rating__overall' }).text)*2
+        film_details['votes'] = " R".join(BS(page).find('div', { 'class': 'average-rating__total' }).text.split('R'))
+
+        film_details['castandrole'] = self.get_cast(filmid)
+
+        stream_info = {}
+        lang_info = BS(page).find('ul', { 'class': 'film-meta film-show__film-meta light-on-dark' }).findAll('li')
+        offset = 0 if len(lang_info) == 3 else 1
+        stream_info['audio'] = { 'language': lang_info[1+offset].text }
+        stream_info['subtitle'] = { 'language': lang_info[2+offset].text }
+
+        return (film_details,stream_info)
 
     def now_showing(self):
         page = self._session.get(self._mubi_urls["nowshowing"])
@@ -96,7 +143,9 @@ class Mubi(object):
 
             plotoutline = x.find('p').text
 
-            plot = "" # TODO: access film page to read the full plot
+            (film_meta,film_stream) = self.film_info(mubi_id)
+            plot = film_meta['plot']
+            #print(film_meta)
 
             if x.find('i', {"aria-label": "HD"}):
                 hd = True
@@ -108,11 +157,16 @@ class Mubi(object):
                 title=title,
                 director=director,
                 year=year,
-                duration=None,
+                duration=film_meta['duration'],
                 country=country,
                 plotoutline=plotoutline,
                 plot=plot,
-                overlay=6 if hd else 0
+                overlay=6 if hd else 0,
+                genre=film_meta['genre'],
+                originaltitle=film_meta['originaltitle'],
+                rating=film_meta['rating'],
+                votes=film_meta['votes'],
+                castandrole=film_meta['castandrole']
             )
 
             # format a title with the year included for list_view
@@ -121,7 +175,7 @@ class Mubi(object):
             if hd:
                 listview_title += " [HD]"
 
-            f = Film(listview_title, mubi_id, artwork, metadata)
+            f = Film(listview_title, mubi_id, artwork, metadata, film_stream)
 
             films.append(f)
         return films
