@@ -4,9 +4,11 @@ import logging
 import requests
 import re
 from urllib import urlencode
+import urllib
 from urlparse import urljoin
 from collections import namedtuple
 from BeautifulSoup import BeautifulSoup as BS
+import HTMLParser
 
 Film      = namedtuple('Film', ['title', 'mubi_id', 'artwork', 'metadata','stream_info'])
 Metadata  = namedtuple('Metadata', ['title', 'director', 'year', 'duration', 'country', 'plotoutline', 'plot', 'overlay', 'genre', 'originaltitle', 'rating', 'votes', 'castandrole'])
@@ -36,6 +38,7 @@ class Mubi(object):
         self._logger.addHandler(handler)
         self._session = requests.session()
         self._session.headers = {'User-Agent': self._USER_AGENT}
+        self._entparser = HTMLParser.HTMLParser()
 
     def __del__(self):
         self._session.get(self._mubi_urls["logout"])
@@ -59,47 +62,50 @@ class Mubi(object):
             self._logger.error("Login failed")
         return r.status_code
 
-    def get_cast(self,filmid):
-        page = self._session.get(self._mubi_urls["filmcast"] % filmid, allow_redirects=True).text
-        memb = BS(page).findAll('span', { 'class': 'cast-member-media__info' })
-        cast = []
-        for m in memb:
-            name = m.find( 'span', { 'class': 'cast-member-media__header condensed-header' }).text
-            role = m.find( 'span', { 'class': 'cast-member-media__subheader condensed-upper' }).text
-            cast.append((name,role))
-        return cast
-
     def film_info(self,filmid):
-        page = self._session.get(self._mubi_urls["filmdetails"] % filmid, allow_redirects=True).text
-        section_meta = BS(page).find('section', { 'class': 'film-show__row film-show__row--bottom' })
         film_details = {}
-
-        film_details['genre'] = section_meta.find('div', { 'class': 'film-show__genres' }).text
-
-        film_details['duration'] = int(section_meta.find('time', { 'itemprop': 'duration' }).text)*60
+        stream_info = {}
+        page = self._session.get(self._mubi_urls["filmdetails"] % filmid, allow_redirects=True).text
+        page_region = BS(page).find('div', { 'id': 'page-region' })
         
-        alt_title = section_meta.find('h2', { 'class': 'film-show__titles__title-alt condensed-header' })
+        # Top half of page
+        trailer_region = page_region.find('div', { 'id': 'trailer-region' })
+        show_info = trailer_region.find('div', { 'class': 'film-show__info' })
+
+        film_details['genre'] = show_info.find('div', { 'class': 'film-show__genres' }).text
+
+        film_details['duration'] = int(show_info.find('time', { 'itemprop': 'duration' }).text)*60
+        
+        alt_title = trailer_region.find('h2', { 'class': 'film-show__titles__title-alt condensed-header' })
         if alt_title:
-            film_details['originaltitle'] = alt_title.text
+            film_details['originaltitle'] = self._entparser.unescape(alt_title.text)
         else:
             film_details['originaltitle'] = None
 
-        sect_descriptions = BS(page).findAll('section', { 'class': 'film-show__descriptions__row' })
+        sect_descriptions = trailer_region.findAll('section', { 'class': 'film-show__descriptions__row' })
         synopsis = sect_descriptions[0].find('p').text
         our_take = sect_descriptions[1].find('p').text
 
-        film_details['plot'] = "Synopsis: %s\n\nOur take: %s" % (synopsis, our_take)
+        film_details['plot'] = self._entparser.unescape("Synopsis: %s\n\nOur take: %s" % (synopsis, our_take))
 
-        film_details['rating'] = float(BS(page).find('div', { 'class': 'average-rating__overall' }).text)*2
-        film_details['votes'] = " R".join(BS(page).find('div', { 'class': 'average-rating__total' }).text.split('R'))
+        rating_info = trailer_region.find('div', {'class': 'film-show__average-rating' })
+        film_details['rating'] = float(rating_info.find('div', { 'class': 'average-rating__overall' }).text)*2
+        film_details['votes'] = " R".join(rating_info.find('div', { 'class': 'average-rating__total' }).text.split('R'))
 
-        film_details['castandrole'] = self.get_cast(filmid)
-
-        stream_info = {}
-        lang_info = BS(page).find('ul', { 'class': 'film-meta film-show__film-meta light-on-dark' }).findAll('li')
+        lang_info = show_info.find('ul', { 'class': 'film-meta film-show__film-meta light-on-dark' }).findAll('li')
         offset = 0 if len(lang_info) == 3 else 1
         stream_info['audio'] = { 'language': lang_info[1+offset].text }
         stream_info['subtitle'] = { 'language': lang_info[2+offset].text }
+
+        cast_region = BS(page).find('div', {'class': 'entity-body-section'}).find('ul', {'class': 'cast-member-media cast-member-media--film-page'})
+        members = cast_region.findAll('span', {'class': 'cast-member-media__info'})
+        cast = []
+        for m in members:
+            name = self._entparser.unescape(m.find( 'span', { 'class': 'cast-member-media__header condensed-header' }).text)
+            role = m.find( 'span', { 'class': 'cast-member-media__subheader condensed-upper' }).text
+            # We can get an image at this point but I don't think Kodi supports setting it for cast members
+            cast.append((name,role))
+        film_details['castandrole'] = cast
 
         return (film_details,stream_info)
 
@@ -145,7 +151,6 @@ class Mubi(object):
 
             (film_meta,film_stream) = self.film_info(mubi_id)
             plot = film_meta['plot']
-            #print(film_meta)
 
             if x.find('i', {"aria-label": "HD"}):
                 hd = True
@@ -155,7 +160,7 @@ class Mubi(object):
             # metadata - ideally need to scrape this from the film page or a JSON API
             metadata = Metadata(
                 title=title,
-                director=director,
+                director=self._entparser.unescape(director),
                 year=year,
                 duration=film_meta['duration'],
                 country=country,
