@@ -197,6 +197,13 @@ class Mubi(object):
         video_page = self._session.get(video_page_url).content
         video_data_elem = BS(video_page).find(attrs={"data-secure-url": True})
         video_data_url = video_data_elem.get("data-secure-url")
+        # Mubi are using MPD(dash), and Kodi autodetects on extension
+        matched_url = re.match('^(.*\.mpd).*',video_data_url)
+        if not matched_url:
+            self._logger.debug("Warning: stream returned not in mpd format")
+            clean_url = video_data_url
+        else:
+            clean_url = matched_url.group(0)
         self._logger.debug("Got video url as: '%s'" % video_data_url)
         return video_data_url
 
