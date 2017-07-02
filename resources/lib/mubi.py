@@ -8,6 +8,7 @@ import urllib
 from urlparse import urljoin
 from collections import namedtuple
 from BeautifulSoup import BeautifulSoup as BS
+from multiprocessing.dummy import Pool as ThreadPool 
 import HTMLParser
 
 Film      = namedtuple('Film', ['title', 'mubi_id', 'artwork', 'metadata','stream_info'])
@@ -109,80 +110,79 @@ class Mubi(object):
 
         return (film_details,stream_info)
 
+    def generate_entry(self,x):
+        mubi_id_elem = x.find('a', {"data-filmid": True})
+
+        if not mubi_id_elem:
+            # either a "Coming soon" or a "Just left" movie
+            return None
+
+        # core
+        mubi_id   = mubi_id_elem.get("data-filmid")
+        title     = x.find('h2').text
+
+        meta = x.find('h3');
+
+        # director
+        director = meta.find('a', {"itemprop": "director"}).parent.text
+
+        # country-year
+        country_year = meta.find('span', "now-showing-tile-director-year__year-country").text
+        cyMatch = self._regexps["country_year"].match(country_year)
+        if cyMatch:
+            country = cyMatch.group(1)
+            year = cyMatch.group(2)
+        else:
+            country = None
+            year = None
+
+        # artwork
+        artStyle = x.find('div', {"style": True}).get("style")
+        urlMatch = self._regexps["image_url"].search(artStyle)
+        if urlMatch:
+            artwork = urlMatch.group(1)
+        else:
+            artwork = None
+
+        plotoutline = x.find('p').text
+
+        (film_meta,film_stream) = self.film_info(mubi_id)
+        plot = film_meta['plot']
+
+        if x.find('i', {"aria-label": "HD"}):
+            hd = True
+        else:
+            hd = False
+
+        # metadata - ideally need to scrape this from the film page or a JSON API
+        metadata = Metadata(
+            title=title,
+            director=self._entparser.unescape(director),
+            year=year,
+            duration=film_meta['duration'],
+            country=country,
+            plotoutline=plotoutline,
+            plot=plot,
+            overlay=6 if hd else 0,
+            genre=film_meta['genre'],
+            originaltitle=film_meta['originaltitle'],
+            rating=film_meta['rating'],
+            votes=film_meta['votes'],
+            castandrole=film_meta['castandrole']
+        )
+
+        # format a title with the year included for list_view
+        #listview_title = u'{0} ({1})'.format(title, year)
+        listview_title = title
+        if hd:
+            listview_title += " [HD]"
+        return Film(listview_title, mubi_id, artwork, metadata, film_stream)
+
     def now_showing(self):
         page = self._session.get(self._mubi_urls["nowshowing"])
-        films = []
         items = [x for x in BS(page.content).findAll("article")]
-        for x in items:
-            mubi_id_elem = x.find('a', {"data-filmid": True})
-
-            if not mubi_id_elem:
-                # either a "Coming soon" or a "Just left" movie
-                continue
-
-            # core
-            mubi_id   = mubi_id_elem.get("data-filmid")
-            title     = x.find('h2').text
-
-            meta = x.find('h3');
-
-            # director
-            director = meta.find('a', {"itemprop": "director"}).parent.text
-
-            # country-year
-            country_year = meta.find('span', "now-showing-tile-director-year__year-country").text
-            cyMatch = self._regexps["country_year"].match(country_year)
-            if cyMatch:
-                country = cyMatch.group(1)
-                year = cyMatch.group(2)
-            else:
-                country = None
-                year = None
-
-            # artwork
-            artStyle = x.find('div', {"style": True}).get("style")
-            urlMatch = self._regexps["image_url"].search(artStyle)
-            if urlMatch:
-                artwork = urlMatch.group(1)
-            else:
-                artwork = None
-
-            plotoutline = x.find('p').text
-
-            (film_meta,film_stream) = self.film_info(mubi_id)
-            plot = film_meta['plot']
-
-            if x.find('i', {"aria-label": "HD"}):
-                hd = True
-            else:
-                hd = False
-
-            # metadata - ideally need to scrape this from the film page or a JSON API
-            metadata = Metadata(
-                title=title,
-                director=self._entparser.unescape(director),
-                year=year,
-                duration=film_meta['duration'],
-                country=country,
-                plotoutline=plotoutline,
-                plot=plot,
-                overlay=6 if hd else 0,
-                genre=film_meta['genre'],
-                originaltitle=film_meta['originaltitle'],
-                rating=film_meta['rating'],
-                votes=film_meta['votes'],
-                castandrole=film_meta['castandrole']
-            )
-
-            # format a title with the year included for list_view
-            #listview_title = u'{0} ({1})'.format(title, year)
-            listview_title = title
-            if hd:
-                listview_title += " [HD]"
-
-            f = Film(listview_title, mubi_id, artwork, metadata, film_stream)
-
-            films.append(f)
+        pool = ThreadPool(10)
+        films = pool.map(self.generate_entry,items)
         return films
 
     def enable_film(self, name):
@@ -203,7 +203,7 @@ class Mubi(object):
             self._logger.debug("Warning: stream returned not in mpd format")
             clean_url = video_data_url
         else:
-            clean_url = matched_url.group(0)
+            clean_url = matched_url.group(1)
         self._logger.debug("Got video url as: '%s'" % clean_url)
         return clean_url
 
