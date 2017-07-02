@@ -29,8 +29,11 @@ def index():
 def play_film(identifier):
     mubi.enable_film(identifier)
     mubi_url = mubi.get_play_url(identifier)
-    return plugin.set_resolved_url(mubi_url)
-
+    listitem = xbmcgui.ListItem
+    listitem.setPath(mubi_url)
+    listitem.setProperty('inputstreamaddon', 'inputstream.adaptive')
+    listitem.setProperty('inputstream.adaptive.manifest_type', 'mpd')
+    return plugin.set_resolved_url(list_item)
 
 if __name__ == '__main__':
     plugin.run()
