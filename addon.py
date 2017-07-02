@@ -22,8 +22,8 @@ def index():
         'thumbnail': film.artwork,
         'info': film.metadata._asdict(),
         'stream_info': film.stream_info,
-        'inputstreamaddon': 'inputstream.adaptive',
-        'inputstream.adaptive.manifest_type': 'mpd'
+        'properties' : { 'inputstreamaddon': 'inputstream.adaptive',
+        'inputstream.adaptive.manifest_type': 'mpd' }
     } for film in films]
     return items
 
