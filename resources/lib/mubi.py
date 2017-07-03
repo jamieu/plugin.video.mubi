@@ -9,12 +9,12 @@ from urlparse import urljoin
 from collections import namedtuple
 from BeautifulSoup import BeautifulSoup as BS
 from multiprocessing.dummy import Pool as ThreadPool
+from lang import language_to_code
 try:
     import StorageServer
 except:
     import storageserverdummy as StorageServer
 import HTMLParser
-import pycountry
 
 Film      = namedtuple('Film', ['title', 'mubi_id', 'artwork', 'metadata','stream_info'])
 Metadata  = namedtuple('Metadata', ['title', 'director', 'year', 'duration', 'country', 'plotoutline', 'plot', 'overlay', 'genre', 'originaltitle', 'rating', 'votes', 'castandrole'])
@@ -102,10 +102,10 @@ class Mubi(object):
         lang_info = show_info.find('ul', { 'class': 'film-meta film-show__film-meta light-on-dark' }).findAll('li')
         offset = 0 if len(lang_info) == 3 else 1
 
-        audio_code = self.language_to_code(lang_info[1+offset].text)
+        audio_code = language_to_code(lang_info[1+offset].text)
         if audio_code:
             stream_info['audio'] = { 'language': audio_code }
-        sub_code = self.language_to_code(lang_info[2+offset].text)
+        sub_code = language_to_code(lang_info[2+offset].text)
         if sub_code:
             stream_info['subtitle'] = { 'language': sub_code }
 
@@ -121,12 +121,6 @@ class Mubi(object):
 
         result = (film_details,stream_info)
         return result
-
-    def language_to_code(self,lang):
-        try:
-            return pycountry.languages.lookup(lang).alpha_2
-        except:
-            return None
 
     def generate_entry(self,x):
         mubi_id_elem = x.find('a', {"data-filmid": True})
