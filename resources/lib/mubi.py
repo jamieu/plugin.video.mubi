@@ -71,7 +71,7 @@ class Mubi(object):
 
     def login(self):
         self._session = requests.session()
-        slef._session.mount(_URL_MUBI, HTTPAdapter(max_retries=5))
+        self._session.mount(self._URL_MUBI, HTTPAdapter(max_retries=5))
         self._session.headers = {'User-Agent': self._USER_AGENT}
         login_page = self._session.get(self._mubi_urls["login"]).content
         auth_token = (BS(login_page).find("input", {"name": "authenticity_token"}).get("value"))
