@@ -16,12 +16,12 @@ mubi.login(plugin.get_setting("username", unicode), plugin.get_setting("password
 def index():
     films = mubi.now_showing()
     items = [{
-        'label': film.title,
+        'label': film['title'],
         'is_playable': True,
-        'path': plugin.url_for('play_film', identifier=film.mubi_id),
-        'thumbnail': film.artwork,
-        'info': film.metadata._asdict(),
-        'stream_info': film.stream_info,
+        'path': plugin.url_for('play_film', identifier=film['mubi_id']),
+        'thumbnail': film['artwork'],
+        'info': film['metadata'],
+        'stream_info': film['stream_info'],
         'properties' : { 'inputstreamaddon': 'inputstream.adaptive',
         'inputstream.adaptive.manifest_type': 'mpd' }
     } for film in films]

@@ -10,7 +10,7 @@ from collections import namedtuple
 from BeautifulSoup import BeautifulSoup as BS
 from multiprocessing.dummy import Pool as ThreadPool
 from lang import language_to_code
-import simplecache
+from simplecache import SimpleCache
 import datetime
 import HTMLParser
 
@@ -43,7 +43,8 @@ class Mubi(object):
         self._session = requests.session()
         self._session.headers = {'User-Agent': self._USER_AGENT}
         self._entparser = HTMLParser.HTMLParser()
-        self._cache_prefix = "plugin.video.mubi"
+        self._cache_prefix = "plugin.video.mubi.filmcache"
+        self.simplecache = SimpleCache()
 
     def __del__(self):
         self._session.get(self._mubi_urls["logout"])
@@ -129,7 +130,7 @@ class Mubi(object):
 
         # core
         mubi_id   = mubi_id_elem.get("data-filmid")
-        cached = simplecache.get("%.%" % (self._cache_prefix, mubi_id))
+        cached = self.simplecache.get("%s.%s" % (self._cache_prefix, mubi_id))
         if cached:
             return cached
 
@@ -169,7 +170,7 @@ class Mubi(object):
             hd = False
 
         # metadata - ideally need to scrape this from the film page or a JSON API
-        metadata = Metadata(
+        metadata = dict(Metadata(
             title=title,
             director=self._entparser.unescape(director),
             year=year,
@@ -183,22 +184,25 @@ class Mubi(object):
             rating=film_meta['rating'],
             votes=film_meta['votes'],
             castandrole=film_meta['castandrole']
-        )
+        )._asdict())
 
         # format a title with the year included for list_view
         #listview_title = u'{0} ({1})'.format(title, year)
         listview_title = title
         if hd:
             listview_title += " [HD]"
-        result = Film(listview_title, mubi_id, artwork, metadata, film_stream)
-        cached = simplecache.set("%.%" % (self._cache_prefix, mubi_id), result, expiration=datetime.timedelta(days=32))
+        result = dict(Film(listview_title, mubi_id, artwork, metadata, film_stream)._asdict())
+        cached = self.simplecache.set("%s.%s" % (self._cache_prefix, mubi_id), result, expiration=datetime.timedelta(days=32))
         return result
 
     def now_showing(self):
         page = self._session.get(self._mubi_urls["nowshowing"])
         items = [x for x in BS(page.content).findAll("article")]
-        pool = ThreadPool(10)
-        films = pool.map(self.generate_entry,items)
+        films = []
+        for elem in items:
+            films.append(self.generate_entry(elem))
+        #pool = ThreadPool(10)
+        #films = pool.map(self.generate_entry,items)
         return films
 
     def enable_film(self, name):
