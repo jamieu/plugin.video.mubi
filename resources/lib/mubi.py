@@ -102,10 +102,10 @@ class Mubi(object):
         lang_info = show_info.find('ul', { 'class': 'film-meta film-show__film-meta light-on-dark' }).findAll('li')
         offset = 0 if len(lang_info) == 3 else 1
 
-        audio_code = language_to_code(lang_info[1+offset].text)
+        audio_code = self.language_to_code(lang_info[1+offset].text)
         if audio_code:
             stream_info['audio'] = { 'language': audio_code }
-        sub_code = language_to_code(lang_info[2+offset].text)
+        sub_code = self.language_to_code(lang_info[2+offset].text)
         if sub_code:
             stream_info['subtitle'] = { 'language': sub_code }
 
@@ -125,7 +125,7 @@ class Mubi(object):
     def language_to_code(self,lang):
         try:
             return pycountry.languages.lookup(lang).alpha_2
-        else:
+        except:
             return None
 
     def generate_entry(self,x):
