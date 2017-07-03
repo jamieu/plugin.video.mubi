@@ -13,6 +13,8 @@ from lang import language_to_code
 from simplecache import SimpleCache
 import datetime
 import HTMLParser
+import pickle
+import pytz
 
 Film      = namedtuple('Film', ['title', 'mubi_id', 'artwork', 'metadata','stream_info'])
 Metadata  = namedtuple('Metadata', ['title', 'director', 'year', 'duration', 'country', 'plotoutline', 'plot', 'overlay', 'genre', 'originaltitle', 'rating', 'votes', 'castandrole'])
@@ -25,41 +27,58 @@ class Mubi(object):
         "country_year":  re.compile(r"(.*)\, ([0-9]{4})")
     }
     _mubi_urls = {
-        "login":      urljoin(_URL_MUBI, "session/new"),
-        "session":    urljoin(_URL_MUBI, "session"),
-        "nowshowing": urljoin(_URL_MUBI, "showing"),
-        "video":      urljoin(_URL_MUBI, "showing/%s/watch"),
-        "prescreen":  urljoin(_URL_MUBI, "showing/%s/prescreen"),
+        "login":       urljoin(_URL_MUBI, "session/new"),
+        "session":     urljoin(_URL_MUBI, "session"),
+        "nowshowing":  urljoin(_URL_MUBI, "showing"),
+        "video":       urljoin(_URL_MUBI, "showing/%s/watch"),
+        "prescreen":   urljoin(_URL_MUBI, "showing/%s/prescreen"),
         "filmdetails": urljoin(_URL_MUBI, "showing/%s"),
-        "filmcast": urljoin(_URL_MUBI, "films/%s/cast"),
-        "logout":     urljoin(_URL_MUBI, "logout"),
+        "filmcast":    urljoin(_URL_MUBI, "films/%s/cast"),
+        "logout":      urljoin(_URL_MUBI, "logout"),
+        "account":     urljoin(_URL_MUBI, "account")
     }
 
-    def __init__(self):
+    def __init__(self, username, password):
         self._logger = logging.getLogger('mubi.Mubi')
         self._logger.setLevel(logging.DEBUG)
         handler = logging.StreamHandler()
         self._logger.addHandler(handler)
-        self._session = requests.session()
-        self._session.headers = {'User-Agent': self._USER_AGENT}
         self._entparser = HTMLParser.HTMLParser()
-        self._cache_prefix = "plugin.video.mubi.filmcache"
-        self.simplecache = SimpleCache()
-
-    def __del__(self):
-        self._session.get(self._mubi_urls["logout"])
-
-    def login(self, username, password):
+        self._cache_prefix = "plugin.video.mubi.cache"
+        self._simplecache = SimpleCache()
         self._username = username
         self._password = password
+        pickled_session = self._simplecache.get("%s.session" % self._cache_prefix)
+        if pickled_session:
+            cached_session = pickle.loads(pickled_session)
+            if (self.is_logged_in(cached_session)):
+                self._logger.debug("Already logged in, using cached session")
+                self._session = cached_session
+            else:
+                self.login()
+        else:
+            self.login()
+        self._simplecache.set("%s.session" % self._cache_prefix, pickle.dumps(self._session), expiration=datetime.timedelta(days=30))
+
+#    def __del__(self):
+#        self._session.get(self._mubi_urls["logout"])
+
+    def is_logged_in(self,session):
+        r = session.head(self._mubi_urls["account"], allow_redirects=False)
+        return r.status_code == 200:
+        
+
+    def login(self):
+        self._session = requests.session()
+        self._session.headers = {'User-Agent': self._USER_AGENT}
         login_page = self._session.get(self._mubi_urls["login"]).content
         auth_token = (BS(login_page).find("input", {"name": "authenticity_token"}).get("value"))
         session_payload = {'utf8': '✓',
                            'authenticity_token': auth_token,
-                           'session[email]': username,
-                           'session[password]': password }
+                           'session[email]': self._username,
+                           'session[password]': self._password }
 
-        self._logger.debug("Logging in as user '%s', auth token is '%s'" % (username, auth_token))
+        self._logger.debug("Logging in as user '%s', auth token is '%s'" % (self._username, auth_token))
 
         r = self._session.post(self._mubi_urls["session"], data=session_payload, allow_redirects=False)
         if r.status_code == 302:
@@ -130,9 +149,9 @@ class Mubi(object):
 
         # core
         mubi_id   = mubi_id_elem.get("data-filmid")
-        cached = self.simplecache.get("%s.%s" % (self._cache_prefix, mubi_id))
+        cached = self._simplecache.get("%s.%s" % (self._cache_prefix, mubi_id))
         if cached:
-            return cached
+            return pickle.loads(cached)
 
         title     = x.find('h2').text
 
@@ -170,7 +189,7 @@ class Mubi(object):
             hd = False
 
         # metadata - ideally need to scrape this from the film page or a JSON API
-        metadata = dict(Metadata(
+        metadata = Metadata(
             title=title,
             director=self._entparser.unescape(director),
             year=year,
@@ -184,18 +203,21 @@ class Mubi(object):
             rating=film_meta['rating'],
             votes=film_meta['votes'],
             castandrole=film_meta['castandrole']
-        )._asdict())
+        )
 
         # format a title with the year included for list_view
         #listview_title = u'{0} ({1})'.format(title, year)
         listview_title = title
         if hd:
             listview_title += " [HD]"
-        result = dict(Film(listview_title, mubi_id, artwork, metadata, film_stream)._asdict())
-        cached = self.simplecache.set("%s.%s" % (self._cache_prefix, mubi_id), result, expiration=datetime.timedelta(days=32))
+        result = Film(listview_title, mubi_id, artwork, metadata, film_stream)
+        cached = self._simplecache.set("%s.%s" % (self._cache_prefix, mubi_id), pickle.dumps(result), expiration=datetime.timedelta(days=32))
         return result
 
     def now_showing(self):
+        cached_showing = self._simplecache.get("%s.now_showing" % self._cache_prefix)
+        if cached_showing:
+            return pickle.loads(cached_showing)
         page = self._session.get(self._mubi_urls["nowshowing"])
         items = [x for x in BS(page.content).findAll("article")]
         films = []
@@ -203,6 +225,10 @@ class Mubi(object):
             films.append(self.generate_entry(elem))
         #pool = ThreadPool(10)
         #films = pool.map(self.generate_entry,items)
+        # Get time until midnight PDT
+        cur = pytz.utc.localize(datetime.datetime.utcnow()).astimezone(pytz.timezone('US/Pacific'))
+        seconds = (cur.replace(hour=23, minute=59, second=59, microsecond=999) - cur).total_seconds()
+        self._simplecache.set("%s.now_showing" % self._cache_prefix, pickle.dumps(films), expiration=datetime.timedelta(seconds=seconds))
         return films
 
     def enable_film(self, name):
