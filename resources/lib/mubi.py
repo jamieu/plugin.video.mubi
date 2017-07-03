@@ -10,10 +10,8 @@ from collections import namedtuple
 from BeautifulSoup import BeautifulSoup as BS
 from multiprocessing.dummy import Pool as ThreadPool
 from lang import language_to_code
-try:
-    import StorageServer
-except:
-    import storageserverdummy as StorageServer
+import simplecache
+import datetime
 import HTMLParser
 
 Film      = namedtuple('Film', ['title', 'mubi_id', 'artwork', 'metadata','stream_info'])
@@ -45,7 +43,7 @@ class Mubi(object):
         self._session = requests.session()
         self._session.headers = {'User-Agent': self._USER_AGENT}
         self._entparser = HTMLParser.HTMLParser()
-        self._cache = StorageServer.StorageServer("Mubi", 768) #32 day cache
+        self._cache_prefix = "plugin.video.mubi"
 
     def __del__(self):
         self._session.get(self._mubi_urls["logout"])
@@ -131,8 +129,8 @@ class Mubi(object):
 
         # core
         mubi_id   = mubi_id_elem.get("data-filmid")
-        cached = self._cache.get(mubi_id)
-        if cached != "":
+        cached = simplecache.get("%.%" % (self._cache_prefix, mubi_id))
+        if cached:
             return cached
 
         title     = x.find('h2').text
@@ -193,7 +191,7 @@ class Mubi(object):
         if hd:
             listview_title += " [HD]"
         result = Film(listview_title, mubi_id, artwork, metadata, film_stream)
-        self._cache.set(mubi_id, result)
+        cached = simplecache.set("%.%" % (self._cache_prefix, mubi_id), result, expiration=datetime.timedelta(days=32))
         return result
 
     def now_showing(self):
