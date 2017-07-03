@@ -8,7 +8,11 @@ import urllib
 from urlparse import urljoin
 from collections import namedtuple
 from BeautifulSoup import BeautifulSoup as BS
-from multiprocessing.dummy import Pool as ThreadPool 
+from multiprocessing.dummy import Pool as ThreadPool
+try:
+    import StorageServer
+except:
+    import storageserverdummy as StorageServer
 import HTMLParser
 
 Film      = namedtuple('Film', ['title', 'mubi_id', 'artwork', 'metadata','stream_info'])
@@ -40,6 +44,7 @@ class Mubi(object):
         self._session = requests.session()
         self._session.headers = {'User-Agent': self._USER_AGENT}
         self._entparser = HTMLParser.HTMLParser()
+        self._cache = StorageServer.StorageServer("Mubi", 768) #32 day cache
 
     def __del__(self):
         self._session.get(self._mubi_urls["logout"])
@@ -64,6 +69,9 @@ class Mubi(object):
         return r.status_code
 
     def film_info(self,filmid):
+        cached = self._cache.get(filmid)
+        if cached != "":
+            return cached
         film_details = {}
         stream_info = {}
         page = self._session.get(self._mubi_urls["filmdetails"] % filmid, allow_redirects=True).text
@@ -73,7 +81,7 @@ class Mubi(object):
         trailer_region = page_region.find('div', { 'id': 'trailer-region' })
         show_info = trailer_region.find('div', { 'class': 'film-show__info' })
 
-        film_details['genre'] = show_info.find('div', { 'class': 'film-show__genres' }).text
+        film_details['genre'] = self._entparser.unescape(show_info.find('div', { 'class': 'film-show__genres' }).text)
 
         film_details['duration'] = int(show_info.find('time', { 'itemprop': 'duration' }).text)*60
         
@@ -108,7 +116,9 @@ class Mubi(object):
             cast.append((name,role))
         film_details['castandrole'] = cast
 
-        return (film_details,stream_info)
+        result = (film_details,stream_info)
+        self._cache.set(filmid, result)
+        return result
 
     def generate_entry(self,x):
         mubi_id_elem = x.find('a', {"data-filmid": True})

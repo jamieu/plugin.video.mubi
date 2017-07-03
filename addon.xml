@@ -5,6 +5,7 @@
     <import addon="script.module.xbmcswift2" version="2.4.0"/>
     <import addon="script.module.requests" version="0.13.2"/>
     <import addon="script.module.beautifulsoup" version="3.0.8"/>
+    <import addon="script.common.plugin.cache" version="2.5.5"/>
   </requires>
   <extension point="xbmc.python.pluginsource" library="addon.py">
     <provides>video</provides>
