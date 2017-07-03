@@ -11,6 +11,7 @@ from BeautifulSoup import BeautifulSoup as BS
 from multiprocessing.dummy import Pool as ThreadPool
 from lang import language_to_code
 from simplecache import SimpleCache
+from requests.adapters import HTTPAdapter
 import datetime
 import HTMLParser
 import pickle
@@ -44,7 +45,7 @@ class Mubi(object):
         handler = logging.StreamHandler()
         self._logger.addHandler(handler)
         self._entparser = HTMLParser.HTMLParser()
-        self._cache_prefix = "plugin.video.mubi.cache"
+        self._cache_prefix = "plugin.video.mubi.cached_obj"
         self._simplecache = SimpleCache()
         self._username = username
         self._password = password
@@ -65,11 +66,12 @@ class Mubi(object):
 
     def is_logged_in(self,session):
         r = session.head(self._mubi_urls["account"], allow_redirects=False)
-        return r.status_code == 200:
+        return r.status_code == 200
         
 
     def login(self):
         self._session = requests.session()
+        slef._session.mount(_URL_MUBI, HTTPAdapter(max_retries=5))
         self._session.headers = {'User-Agent': self._USER_AGENT}
         login_page = self._session.get(self._mubi_urls["login"]).content
         auth_token = (BS(login_page).find("input", {"name": "authenticity_token"}).get("value"))
@@ -220,11 +222,11 @@ class Mubi(object):
             return pickle.loads(cached_showing)
         page = self._session.get(self._mubi_urls["nowshowing"])
         items = [x for x in BS(page.content).findAll("article")]
-        films = []
-        for elem in items:
-            films.append(self.generate_entry(elem))
-        #pool = ThreadPool(10)
-        #films = pool.map(self.generate_entry,items)
+        #films = []
+        #for elem in items:
+        #    films.append(self.generate_entry(elem))
+        pool = ThreadPool(10)
+        films = pool.map(self.generate_entry,items)
         # Get time until midnight PDT
         cur = pytz.utc.localize(datetime.datetime.utcnow()).astimezone(pytz.timezone('US/Pacific'))
         seconds = (cur.replace(hour=23, minute=59, second=59, microsecond=999) - cur).total_seconds()
