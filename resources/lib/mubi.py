@@ -14,6 +14,7 @@ try:
 except:
     import storageserverdummy as StorageServer
 import HTMLParser
+import pycountry
 
 Film      = namedtuple('Film', ['title', 'mubi_id', 'artwork', 'metadata','stream_info'])
 Metadata  = namedtuple('Metadata', ['title', 'director', 'year', 'duration', 'country', 'plotoutline', 'plot', 'overlay', 'genre', 'originaltitle', 'rating', 'votes', 'castandrole'])
@@ -69,9 +70,6 @@ class Mubi(object):
         return r.status_code
 
     def film_info(self,filmid):
-        cached = self._cache.get(filmid)
-        if cached != "":
-            return cached
         film_details = {}
         stream_info = {}
         page = self._session.get(self._mubi_urls["filmdetails"] % filmid, allow_redirects=True).text
@@ -103,8 +101,13 @@ class Mubi(object):
 
         lang_info = show_info.find('ul', { 'class': 'film-meta film-show__film-meta light-on-dark' }).findAll('li')
         offset = 0 if len(lang_info) == 3 else 1
-        stream_info['audio'] = { 'language': lang_info[1+offset].text }
-        stream_info['subtitle'] = { 'language': lang_info[2+offset].text }
+
+        audio_code = language_to_code(lang_info[1+offset].text)
+        if audio_code:
+            stream_info['audio'] = { 'language': audio_code }
+        sub_code = language_to_code(lang_info[2+offset].text)
+        if sub_code:
+            stream_info['subtitle'] = { 'language': sub_code }
 
         cast_region = BS(page).find('div', {'class': 'entity-body-section'}).find('ul', {'class': 'cast-member-media cast-member-media--film-page'})
         members = cast_region.findAll('span', {'class': 'cast-member-media__info'})
@@ -117,8 +120,13 @@ class Mubi(object):
         film_details['castandrole'] = cast
 
         result = (film_details,stream_info)
-        self._cache.set(filmid, result)
         return result
+
+    def language_to_code(self,lang):
+        try:
+            return pycountry.languages.lookup(lang).alpha_2
+        else:
+            return None
 
     def generate_entry(self,x):
         mubi_id_elem = x.find('a', {"data-filmid": True})
@@ -129,6 +137,10 @@ class Mubi(object):
 
         # core
         mubi_id   = mubi_id_elem.get("data-filmid")
+        cached = self._cache.get(mubi_id)
+        if cached != "":
+            return cached
+
         title     = x.find('h2').text
 
         meta = x.find('h3');
@@ -186,7 +198,9 @@ class Mubi(object):
         listview_title = title
         if hd:
             listview_title += " [HD]"
-        return Film(listview_title, mubi_id, artwork, metadata, film_stream)
+        result = Film(listview_title, mubi_id, artwork, metadata, film_stream)
+        self._cache.set(mubi_id, result)
+        return result
 
     def now_showing(self):
         page = self._session.get(self._mubi_urls["nowshowing"])
