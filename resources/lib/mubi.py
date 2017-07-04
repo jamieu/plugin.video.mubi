@@ -7,7 +7,7 @@ from urllib import urlencode
 import urllib
 from urlparse import urljoin
 from collections import namedtuple
-from BeautifulSoup import BeautifulSoup as BS
+from bs4 import BeautifulSoup as BS
 from multiprocessing.dummy import Pool as ThreadPool
 from lang import language_to_code
 try:
@@ -20,6 +20,7 @@ import HTMLParser
 import pickle
 import pytz
 
+#http://kodi.wiki/view/InfoLabels
 Film      = namedtuple('Film', ['title', 'mubi_id', 'artwork', 'metadata','stream_info'])
 Metadata  = namedtuple('Metadata', ['title', 'director', 'year', 'duration', 'country', 'plotoutline', 'plot', 'overlay', 'genre', 'originaltitle', 'rating', 'votes', 'castandrole'])
 
@@ -52,6 +53,7 @@ class Mubi(object):
         self._simplecache = SimpleCache()
         self._username = username
         self._password = password
+        self._threaded = False
         pickled_session = self._simplecache.get("%s.session" % self._cache_prefix)
         if pickled_session:
             cached_session = pickle.loads(pickled_session)
@@ -64,9 +66,6 @@ class Mubi(object):
             self.login()
         self._simplecache.set("%s.session" % self._cache_prefix, pickle.dumps(self._session), expiration=datetime.timedelta(days=30))
 
-#    def __del__(self):
-#        self._session.get(self._mubi_urls["logout"])
-
     def is_logged_in(self,session):
         r = session.head(self._mubi_urls["account"], allow_redirects=False)
         return r.status_code == 200
@@ -77,7 +76,7 @@ class Mubi(object):
         self._session.mount(self._URL_MUBI, HTTPAdapter(max_retries=5))
         self._session.headers = {'User-Agent': self._USER_AGENT}
         login_page = self._session.get(self._mubi_urls["login"]).content
-        auth_token = (BS(login_page).find("input", {"name": "authenticity_token"}).get("value"))
+        auth_token = BS(login_page,'html.parser').find("input", {"name": "authenticity_token"}).get("value")
         session_payload = {'utf8': '✓',
                            'authenticity_token': auth_token,
                            'session[email]': self._username,
@@ -96,7 +95,7 @@ class Mubi(object):
         film_details = {}
         stream_info = {}
         page = self._session.get(self._mubi_urls["filmdetails"] % filmid, allow_redirects=True).text
-        page_region = BS(page).find('div', { 'id': 'page-region' })
+        page_region = BS(page,'html.parser').find('div', { 'id': 'page-region' })
         
         # Top half of page
         trailer_region = page_region.find('div', { 'id': 'trailer-region' })
@@ -106,7 +105,7 @@ class Mubi(object):
 
         film_details['duration'] = int(show_info.find('time', { 'itemprop': 'duration' }).text)*60
         
-        alt_title = trailer_region.find('h2', { 'class': 'film-show__titles__title-alt condensed-header' })
+        alt_title = trailer_region.find('h2', { 'class': 'film-show__titles__title-alt' })
         if alt_title:
             film_details['originaltitle'] = self._entparser.unescape(alt_title.text)
         else:
@@ -122,22 +121,25 @@ class Mubi(object):
         film_details['rating'] = float(rating_info.find('div', { 'class': 'average-rating__overall' }).text)*2
         film_details['votes'] = " R".join(rating_info.find('div', { 'class': 'average-rating__total' }).text.split('R'))
 
-        lang_info = show_info.find('ul', { 'class': 'film-meta film-show__film-meta light-on-dark' }).findAll('li')
+        lang_info = show_info.find('ul', { 'class': 'film-meta' }).findAll('li')
         offset = 0 if len(lang_info) == 3 else 1
 
-        audio_code = language_to_code(lang_info[1+offset].text)
+        audio_lang = lang_info[1+offset].text.strip()
+        audio_code = language_to_code(audio_lang)
         if audio_code:
             stream_info['audio'] = { 'language': audio_code }
-        sub_code = language_to_code(lang_info[2+offset].text)
+        sub_lang = lang_info[2+offset].text.strip()
+        sub_code = language_to_code(sub_lang)
         if sub_code:
             stream_info['subtitle'] = { 'language': sub_code }
 
-        cast_region = BS(page).find('div', {'class': 'entity-body-section'}).find('ul', {'class': 'cast-member-media cast-member-media--film-page'})
-        members = cast_region.findAll('span', {'class': 'cast-member-media__info'})
+        cast_region = BS(page,'html.parser').find('ul', {'class': 'cast-member-media'})
+        members = cast_region.findAll('li', {'class': 'cast-member-media__item'})
         cast = []
         for m in members:
-            name = self._entparser.unescape(m.find( 'span', { 'class': 'cast-member-media__header condensed-header' }).text)
-            role = m.find( 'span', { 'class': 'cast-member-media__subheader condensed-upper' }).text
+            name = self._entparser.unescape(m.find( 'span', { 'class': 'cast-member-media__header' }).text)
+            role = m.find( 'span', { 'class': 'cast-member-media__subheader' }).text
+            img = m.find('img')['src'] # If not present, it will have placeholder in string
             # We can get an image at this point but I don't think Kodi supports setting it for cast members
             cast.append((name,role))
         film_details['castandrole'] = cast
@@ -193,7 +195,6 @@ class Mubi(object):
         else:
             hd = False
 
-        # metadata - ideally need to scrape this from the film page or a JSON API
         metadata = Metadata(
             title=title,
             director=self._entparser.unescape(director),
@@ -224,12 +225,14 @@ class Mubi(object):
         if cached_showing:
             return pickle.loads(cached_showing)
         page = self._session.get(self._mubi_urls["nowshowing"])
-        items = [x for x in BS(page.content).findAll("article")]
-        #films = []
-        #for elem in items:
-        #    films.append(self.generate_entry(elem))
-        pool = ThreadPool(10)
-        films = pool.map(self.generate_entry,items)
+        items = [x for x in BS(page.content,'html.parser').findAll("article")]
+        if self._threaded:
+            pool = ThreadPool(10)
+            films = pool.map(self.generate_entry,items)
+        else:
+            films = []
+            for elem in items:
+                films.append(self.generate_entry(elem))
         # Get time until midnight PDT
         cur = pytz.utc.localize(datetime.datetime.utcnow()).astimezone(pytz.timezone('US/Pacific'))
         seconds = (cur.replace(hour=23, minute=59, second=59, microsecond=999) - cur).total_seconds()
@@ -246,7 +249,7 @@ class Mubi(object):
     def get_play_url(self, name):
         video_page_url = self._mubi_urls["video"] % name
         video_page = self._session.get(video_page_url).content
-        video_data_elem = BS(video_page).find(attrs={"data-secure-url": True})
+        video_data_elem = BS(video_page,'html.parser').find(attrs={"data-secure-url": True})
         video_data_url = video_data_elem.get("data-secure-url")
         # Mubi are using MPD(dash), and Kodi autodetects on extension
         matched_url = re.match('^(.*\.mpd).*',video_data_url)
