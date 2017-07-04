@@ -53,7 +53,7 @@ class Mubi(object):
         self._simplecache = SimpleCache()
         self._username = username
         self._password = password
-        self._threaded = False
+        self._threaded = True
         pickled_session = self._simplecache.get("%s.session" % self._cache_prefix)
         if pickled_session:
             cached_session = pickle.loads(pickled_session)
@@ -235,6 +235,8 @@ class Mubi(object):
             films = []
             for elem in items:
                 films.append(self.generate_entry(elem))
+        # Filter out empty ones
+        films = [f for f in films if f]
         # Get time until midnight PDT
         cur = pytz.utc.localize(datetime.datetime.utcnow()).astimezone(pytz.timezone('US/Pacific'))
         seconds = (cur.replace(hour=23, minute=59, second=59, microsecond=999) - cur).total_seconds()
