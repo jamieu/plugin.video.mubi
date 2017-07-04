@@ -10,7 +10,10 @@ from collections import namedtuple
 from BeautifulSoup import BeautifulSoup as BS
 from multiprocessing.dummy import Pool as ThreadPool
 from lang import language_to_code
-from simplecache import SimpleCache
+try:
+    from simplecache import SimpleCache
+except:
+    from simplecachedummy import SimpleCache
 from requests.adapters import HTTPAdapter
 import datetime
 import HTMLParser
