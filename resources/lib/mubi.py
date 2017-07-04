@@ -141,6 +141,8 @@ class Mubi(object):
             role = m.find( 'span', { 'class': 'cast-member-media__subheader' }).text
             img = m.find('img')['src'] # If not present, it will have placeholder in string
             # We can get an image at this point but I don't think Kodi supports setting it for cast members
+            # https://forum.kodi.tv/showthread.php?tid=118845&page=2
+            # https://forum.kodi.tv/showthread.php?tid=287683
             cast.append((name,role))
         film_details['castandrole'] = cast
 
