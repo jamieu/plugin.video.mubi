@@ -20,9 +20,7 @@ def index():
         'path': plugin.url_for('play_film', identifier=film.mubi_id),
         'thumbnail': film.artwork,
         'info': film.metadata._asdict(),
-        'stream_info': film.stream_info,
-        'properties': { 'inputstreamaddon': 'inputstream.adaptive',
-        'inputstream.adaptive.manifest_type': 'mpd' }
+        'stream_info': film.stream_info
     } for film in films]
     return items
 
@@ -34,6 +32,10 @@ def play_film(identifier):
     if mubi_resolved_info['is_mpd']:
         mubi_film.set_property('inputstreamaddon', 'inputstream.adaptive')
         mubi_film.set_property('inputstream.adaptive.manifest_type', 'mpd')
+        if mubi_resolved_info['is_drm']:
+            drm = mubi_resolved_info['drm_item']
+            mubi_film.set_property('inputstream.adaptive.license_key', drm['lurl']+'|'+drm['header']+'|B{SSM}|'+drm['license_field'])
+            mubi_film.set_property('inputstream.adaptive.license_type', "com.widevine.alpha")
     return plugin.set_resolved_url(mubi_film)
 
 if __name__ == '__main__':

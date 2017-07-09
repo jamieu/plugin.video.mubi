@@ -5,6 +5,8 @@ import requests
 import re
 from urllib import urlencode
 import urllib
+import base64
+import json
 from urlparse import urljoin
 from collections import namedtuple
 from bs4 import BeautifulSoup as BS
@@ -18,7 +20,6 @@ from requests.adapters import HTTPAdapter
 import datetime
 import HTMLParser
 import pickle
-import pytz
 
 #http://kodi.wiki/view/InfoLabels
 Film      = namedtuple('Film', ['title', 'mubi_id', 'artwork', 'metadata','stream_info'])
@@ -252,18 +253,30 @@ class Mubi(object):
 
     def get_play_url(self, name):
         video_page_url = self._mubi_urls["video"] % name
-        video_page = self._session.get(video_page_url).content
-        video_data_elem = BS(video_page,'html.parser').find(attrs={"data-secure-url": True})
+        video_page = BS(self._session.get(video_page_url).content,'html.parser')
+        video_data_elem = video_page.find(attrs={"data-secure-url": True})
         video_data_url = video_data_elem.get("data-secure-url")
         # Mubi are using MPD(dash), and Kodi autodetects on extension
         matched_url = re.match('^(.*\.mpd).*',video_data_url)
+        is_drm = "drm" in video_data_url
+        drm_item = {}
         if not matched_url:
             self._logger.debug("Warning: stream returned not in mpd format")
             clean_url = video_data_url
-            is_mpd = True
+            is_mpd = False
         else:
             clean_url = matched_url.group(1)
-            is_mpd = False
-        self._logger.debug("Got video url as: '%s'" % clean_url)
-        return { 'url': clean_url, 'is_mpd': is_mpd }
+            is_mpd = True
+            if is_drm: #Is DRM
+                drm_block = [drmconf for drmconf in video_page.findAll('script') if 'DrmConfig' in drmconf.text]
+                fields = { 'username': '.*username: \"([^\"]+)\".*', 'accountCode': '.*accountCode: \"([^\"]+)\".*', 'transaction': '.*transaction: \"([^\"]+)\".*', 'widevineLicenseServerURL': '.*widevineLicenseServerURL: \"([^\"]+)\".*' }
+                result = {}
+                for k,v in fields.iteritems():
+                    result[k] = re.search(v,drm_block[0].text).group(1)
+                header = {"userId": long(result['username']), "sessionId": result['transaction'], "merchant": result['accountCode']}
+                drm_item = { 'header': "dt-custom-data="+urllib.quote_plus(base64.b64encode(json.dumps(header).encode())), 'lurl': result['widevineLicenseServerURL'], 'license_field': "license" }
+        self._logger.debug("Got video info as: '%s'" % clean_url)
+        item_result = { 'url': clean_url, 'is_mpd': is_mpd, 'is_drm': is_drm, 'drm_item': drm_item }
+        self._logger.debug("Got video info as: '%s'" % json.dumps(item_result))
+        return item_result
 
