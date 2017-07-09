@@ -260,8 +260,10 @@ class Mubi(object):
         if not matched_url:
             self._logger.debug("Warning: stream returned not in mpd format")
             clean_url = video_data_url
+            is_mpd = True
         else:
             clean_url = matched_url.group(1)
+            is_mpd = False
         self._logger.debug("Got video url as: '%s'" % clean_url)
-        return clean_url
+        return { 'url': clean_url, 'is_mpd': is_mpd }
 

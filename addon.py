@@ -1,4 +1,4 @@
-from xbmcswift2 import xbmc, xbmcgui, Plugin
+from xbmcswift2 import xbmc, xbmcgui, Plugin, ListItem
 from resources.lib.mubi import Mubi
 
 PLUGIN_NAME = 'MUBI'
@@ -29,8 +29,12 @@ def index():
 @plugin.route('/play/<identifier>')
 def play_film(identifier):
     mubi.enable_film(identifier)
-    mubi_url = mubi.get_play_url(identifier)
-    return plugin.set_resolved_url(mubi_url)
+    mubi_resolved_info = mubi.get_play_url(identifier)
+    mubi_film = ListItem(path=mubi_resolved_info['url'])
+    if mubi_resolved_info['is_mpd']:
+        mubi_film.set_property('inputstreamaddon', 'inputstream.adaptive')
+        mubi_film.set_property('inputstream.adaptive.manifest_type', 'mpd')
+    return plugin.set_resolved_url(mubi_film)
 
 if __name__ == '__main__':
     plugin.run()
