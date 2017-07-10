@@ -6,6 +6,7 @@
     <import addon="script.module.requests" version="2.12.4"/>
     <import addon="script.module.beautifulsoup4" version="4.5.3"/>
     <import addon="script.module.simplecache" version="1.0.0" />
+    <import addon="script.module.pytz" version="2014.2" />
   </requires>
   <extension point="xbmc.python.pluginsource" library="addon.py">
     <provides>video</provides>
