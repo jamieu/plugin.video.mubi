@@ -125,6 +125,7 @@ class Mubi(object):
         lang_info = show_info.find('ul', { 'class': 'film-meta' }).findAll('li')
         offset = 0 if len(lang_info) == 3 else 1
 
+        # These fields don't seem to do anything, I'll just place it in the plot
         audio_lang = lang_info[1+offset].text.strip()
         audio_code = language_to_code(audio_lang)
         if audio_code:
@@ -133,6 +134,7 @@ class Mubi(object):
         sub_code = language_to_code(sub_lang)
         if sub_code:
             stream_info['subtitle'] = { 'language': sub_code }
+        film_details['plot'] = ("Language: %s, Subtitles: %s\n" % (audio_lang,sub_lang)) + film_details['plot']
 
         cast_region = BS(page,'html.parser').find('ul', {'class': 'cast-member-media'})
         members = cast_region.findAll('li', {'class': 'cast-member-media__item'})
@@ -274,7 +276,11 @@ class Mubi(object):
                 for k,v in fields.iteritems():
                     result[k] = re.search(v,drm_block[0].text).group(1)
                 header = {"userId": long(result['username']), "sessionId": result['transaction'], "merchant": result['accountCode']}
-                drm_item = { 'header': "dt-custom-data="+urllib.quote_plus(base64.b64encode(json.dumps(header).encode())), 'lurl': result['widevineLicenseServerURL'], 'license_field': "license" }
+                # This might need optdata in header however looking in requests during browser negotiation I don't see it
+                # https://stackoverflow.com/questions/35792897/http-request-header-field-optdata
+                # The best conversation for this is:
+                # https://github.com/emilsvennesson/kodi-viaplay/issues/9
+                drm_item = { 'header': "dt-custom-data="+urllib.quote_plus(base64.b64encode(json.dumps(header).encode())), 'lurl': result['widevineLicenseServerURL'], 'license_field': "" }
         self._logger.debug("Got video info as: '%s'" % clean_url)
         item_result = { 'url': clean_url, 'is_mpd': is_mpd, 'is_drm': is_drm, 'drm_item': drm_item }
         self._logger.debug("Got video info as: '%s'" % json.dumps(item_result))
