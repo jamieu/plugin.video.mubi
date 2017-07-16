@@ -24,7 +24,7 @@ import pickle
 
 #http://kodi.wiki/view/InfoLabels
 Film      = namedtuple('Film', ['title', 'mubi_id', 'artwork', 'metadata','stream_info'])
-Metadata  = namedtuple('Metadata', ['title', 'director', 'year', 'duration', 'country', 'plotoutline', 'plot', 'overlay', 'genre', 'originaltitle', 'rating', 'votes', 'castandrole'])
+Metadata  = namedtuple('Metadata', ['title', 'director', 'year', 'duration', 'country', 'plotoutline', 'plot', 'overlay', 'genre', 'originaltitle', 'rating', 'votes', 'castandrole','trailer'])
 
 class Mubi(object):
     _URL_MUBI         = "https://mubi.com"
@@ -51,7 +51,7 @@ class Mubi(object):
         handler = logging.StreamHandler()
         self._logger.addHandler(handler)
         self._entparser = HTMLParser.HTMLParser()
-        self._cache_prefix = "plugin.video.mubi.cached_obj"
+        self._cache_prefix = "plugin.video.mubi.cachestore"
         self._simplecache = SimpleCache()
         self._username = username
         self._password = password
@@ -102,6 +102,13 @@ class Mubi(object):
         # Top half of page
         trailer_region = page_region.find('div', { 'id': 'trailer-region' })
         show_info = trailer_region.find('div', { 'class': 'film-show__info' })
+        show_trailer = trailer_region.find('div', { 'class': 'film-show__trailer' })
+        print(show_trailer)
+
+        if show_trailer:
+            film_details['trailer'] = show_trailer.find('meta', { 'itemprop': 'contentUrl' })['content']
+        else:
+            film_details['trailer'] = None
 
         film_details['genre'] = self._entparser.unescape(show_info.find('div', { 'class': 'film-show__genres' }).text)
 
@@ -214,7 +221,8 @@ class Mubi(object):
             originaltitle=film_meta['originaltitle'],
             rating=film_meta['rating'],
             votes=film_meta['votes'],
-            castandrole=film_meta['castandrole']
+            castandrole=film_meta['castandrole'],
+            trailer=film_meta['trailer']
         )
 
         # format a title with the year included for list_view
