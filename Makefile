@@ -6,7 +6,6 @@ SOURCE_FILES += README.md LICENSE.txt
 SOURCE_FILES += resources/__init__.py resources/settings.xml
 SOURCE_FILES += resources/language/English/strings.xml
 SOURCE_FILES += resources/lib/__init__.py resources/lib/mubi.py
-SOURCE_FILES += resources/lib/__init__.py resources/lib/lang.py
 SOURCE_FILES += resources/lib/__init__.py resources/lib/simplecachedummy.py
 
 PACKAGING_DIR = packaging
