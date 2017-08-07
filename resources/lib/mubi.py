@@ -119,7 +119,7 @@ class Mubi(object):
 
     def get_default_reel_id_is_drm(self, film_id):
         reel_id = [(f['default_reel']['id'], f['default_reel']['drm'])
-                   for f in json.loads(self.get_now_showing_json()) if f['id'] == film_id]
+                   for f in json.loads(self.get_now_showing_json()) if str(f['id']) == str(film_id)]
         if len(reel_id) == 1:
             return reel_id[0]
         elif reel_id:
