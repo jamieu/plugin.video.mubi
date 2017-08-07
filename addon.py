@@ -33,7 +33,7 @@ def play_film(identifier):
         mubi_film.set_property('inputstreamaddon', 'inputstream.adaptive')
         mubi_film.set_property('inputstream.adaptive.manifest_type', 'mpd')
         if mubi_resolved_info['is_drm']:
-            xbmc.log("Playing DRM films is not currently supported", 1)
+            xbmc.log("Playing DRM films is not currently supported", 4)
             return None
             # drm = mubi_resolved_info['drm_item']
             # mubi_film.set_property('inputstream.adaptive.license_key', drm['lurl']+'|'+drm['header']+

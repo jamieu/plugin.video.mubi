@@ -43,13 +43,13 @@ class Mubi(object):
         payload = {'udid': self._udid, 'token': '', 'client': 'android',
                    'client_version': '3.05', 'email': self._username,
                    'password': self._password}
-        xbmc.log("Logging in with username: %s and udid: %s" % (self._username, self._udid))
+        xbmc.log("Logging in with username: %s and udid: %s" % (self._username, self._udid), 2)
         r = requests.post(self._mubi_urls["login"] + "?client=android", data=payload)
         if r.status_code == 200:
             self._token = json.loads(r.text)['token']
-            xbmc.log("Login Successful and got token %s" % self._token, 1)
+            xbmc.log("Login Successful and got token %s" % self._token, 2)
         else:
-            xbmc.log("Login Failed", 1)
+            xbmc.log("Login Failed", 4)
         return r.status_code
 
     def get_film_page(self, film_id):
@@ -59,7 +59,7 @@ class Mubi(object):
         args = "?client=android&country=GB&token=%s&udid=%s&client_version=3.05" % (self._token, self._udid)
         r = requests.get((self._mubi_urls['film'] % str(film_id)) + args)
         if r.status_code != 200:
-            xbmc.log("Invalid status code %s getting film info for %s" % (r.status_code, film_id))
+            xbmc.log("Invalid status code %s getting film info for %s" % (r.status_code, film_id), 4)
         self._simplecache.set(self._cache_id % film_id, r.text, expiration=datetime.timedelta(days=32))
         return json.loads(r.text)
 
@@ -70,10 +70,10 @@ class Mubi(object):
         # Check film is valid, has not expired and is not preview
         now = datetime.datetime.now(available_at.tzinfo)
         if available_at > now:
-            xbmc.log("Film %s is not yet available" % film_id)
+            xbmc.log("Film %s is not yet available" % film_id, 2)
             return None
         elif expires_at < now:
-            xbmc.log("Film %s has expired" % film_id)
+            xbmc.log("Film %s has expired" % film_id, 2)
             return None
         hd = film_overview['hd']
         drm = film_overview['default_reel']['drm']
@@ -110,7 +110,7 @@ class Mubi(object):
         args = "?client=android&country=GB&token=%s&udid=%s&client_version=3.05" % (self._token, self._udid)
         r = requests.get(self._mubi_urls['films'] + args)
         if r.status_code != 200:
-            xbmc.log("Invalid status code %s getting list of films")
+            xbmc.log("Invalid status code %s getting list of films", 4)
         return r.text
 
     def now_showing(self):
@@ -123,9 +123,10 @@ class Mubi(object):
         if len(reel_id) == 1:
             return reel_id[0]
         elif reel_id:
-            xbmc.log("Multiple default_reel's returned for film %s: %s" % (film_id, ', '.join(reel_id)))
+            xbmc.log("Multiple default_reel's returned for film %s: %s" % (film_id, ', '.join(reel_id)), 3)
+            return reel_id[0]
         else:
-            xbmc.log("Could not find default reel id for film %s" % film_id)
+            xbmc.log("Could not find default reel id for film %s" % film_id, 4)
             return None
 
     def get_play_url(self, film_id):
@@ -134,7 +135,7 @@ class Mubi(object):
                % (self._token, self._udid, film_id, reel_id)
         r = requests.get((self._mubi_urls['viewing'] % str(film_id)) + args)
         if r.status_code != 200:
-            xbmc.log("Could not get secure URL for film %s" % film_id)
+            xbmc.log("Could not get secure URL for film %s" % film_id, 4)
         url = json.loads(r.text)["url"]
         # For DRM you will have to find the following info:
         # {"userId": long(result['username']), "sessionId": result['transaction'], "merchant": result['accountCode']}
@@ -144,5 +145,5 @@ class Mubi(object):
         # https://github.com/emilsvennesson/kodi-viaplay/issues/9
         # You can pick this conversation up using Android Packet Capture
         item_result = {'url': url, 'is_mpd': "mpd" in url, 'is_drm': is_drm}
-        xbmc.log("Got video info as: '%s'" % json.dumps(item_result))
+        xbmc.log("Got video info as: '%s'" % json.dumps(item_result), 2)
         return item_result
