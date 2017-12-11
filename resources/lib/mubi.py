@@ -111,7 +111,8 @@ class Mubi(object):
             overlay=6 if hd else 0,
             genre=', '.join(film_overview['genres']),
             originaltitle=film_overview['original_title'],
-            rating=film_overview['average_rating'] * 2,  # Out of 5, kodi uses 10
+            # Out of 5, kodi uses 10
+            rating=film_overview['average_rating'] * 2 if film_overview['average_rating'] is not None else None,
             votes=film_overview['number_of_ratings'],
             castandrole=cast,
             trailer=film_overview['trailer_url']
