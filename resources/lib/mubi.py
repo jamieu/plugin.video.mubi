@@ -90,9 +90,9 @@ class Mubi(object):
             xbmc.log("Film %s has expired" % film_id, 2)
             return None
         hd = film_overview['hd']
-        drm = film_overview['default_reel']['drm']
-        audio_lang = film_overview['default_reel']['audio_language']
-        subtitle_lang = film_overview['default_reel']['subtitle_language']
+        drm = film_overview['reels'][0]['drm']
+        audio_lang = film_overview['reels'][0]['audio_language']
+        subtitle_lang = film_overview['reels'][0]['subtitle_language']
         # Build plot field. Place lang info in here since there is nowhere else for it to go
         drm_string = "Warning: this film cannot be played since it uses DRM\n" if drm else ""
         lang_string = ("Language: %s" % audio_lang) + ((", Subtitles: %s\n" % subtitle_lang) if subtitle_lang else "\n")
@@ -133,7 +133,7 @@ class Mubi(object):
         return [f for f in films if f]
 
     def get_default_reel_id_is_drm(self, film_id):
-        reel_id = [(f['default_reel']['id'], f['default_reel']['drm'])
+        reel_id = [(f['reels'][0]['id'], f['reels'][0]['drm'])
                    for f in json.loads(self.get_now_showing_json()) if str(f['id']) == str(film_id)]
         if len(reel_id) == 1:
             return reel_id[0]
