@@ -43,7 +43,7 @@ class Mubi(object):
 
     def login(self):
         payload = {'udid': self._udid, 'token': '', 'client': 'android',
-                   'client_version': '3.05', 'email': self._username,
+                   'client_version': '4.1.1', 'email': self._username,
                    'password': self._password}
         xbmc.log("Logging in with username: %s and udid: %s" % (self._username, self._udid), 2)
         r = requests.post(self._mubi_urls["login"] + "?client=android", data=payload)
@@ -57,7 +57,7 @@ class Mubi(object):
 
     def app_startup(self):
         payload = {'udid': self._udid, 'token': self._token, 'client': 'android',
-                   'client_version': '3.05'}
+                   'client_version': '4.1.1'}
         r = requests.post(self._mubi_urls['startup'] + "?client=android", data=payload)
         if r.status_code == 200:
             self._country = json.loads(r.text)['country']
@@ -70,7 +70,7 @@ class Mubi(object):
         cached = self._simplecache.get(self._cache_id % film_id)
         if cached:
             return json.loads(cached)
-        args = "?client=android&country=%s&token=%s&udid=%s&client_version=3.05" % (self._country, self._token, self._udid)
+        args = "?client=android&country=%s&token=%s&udid=%s&client_version=4.1.1" % (self._country, self._token, self._udid)
         r = requests.get((self._mubi_urls['film'] % str(film_id)) + args)
         if r.status_code != 200:
             xbmc.log("Invalid status code %s getting film info for %s" % (r.status_code, film_id), 4)
@@ -122,7 +122,7 @@ class Mubi(object):
 
     def get_now_showing_json(self):
         # Get list of available films
-        args = "?client=android&country=%s&token=%s&udid=%s&client_version=3.05" % (self._country, self._token, self._udid)
+        args = "?client=android&country=%s&token=%s&udid=%s&client_version=4.1.1" % (self._country, self._token, self._udid)
         r = requests.get(self._mubi_urls['films'] + args)
         if r.status_code != 200:
             xbmc.log("Invalid status code %s getting list of films", 4)
@@ -146,7 +146,7 @@ class Mubi(object):
 
     def get_play_url(self, film_id):
         (reel_id, is_drm) = self.get_default_reel_id_is_drm(film_id)
-        args = "?client=android&country=%s&token=%s&udid=%s&client_version=3.05&film_id=%s&reel_id=%s&download=false" \
+        args = "?client=android&country=%s&token=%s&udid=%s&client_version=4.1.1&film_id=%s&reel_id=%s&download=false" \
                % (self._country, self._token, self._udid, film_id, reel_id)
         r = requests.get((self._mubi_urls['viewing'] % str(film_id)) + args)
         if r.status_code != 200:
