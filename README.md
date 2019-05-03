@@ -1,9 +1,9 @@
 
 # MUBI Addon for Kodi
 
-## :cactus: This plugin is no longer being actively maintained 
+## :cactus: This plugin is no longer being actively maintained :cactus:
 
-Happy to accepty a PR if someone wants to try and get it working again, but I no longer have time to maintain it myself.
+Happy to accept a PR if someone wants to try and get it working again, but I no longer have time to maintain it myself.
 
 ## What it is
 
