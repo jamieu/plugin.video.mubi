@@ -4,6 +4,7 @@ import dateutil.parser
 import requests
 import json
 import hashlib
+import base64
 from collections import namedtuple
 from kodiswift import xbmc
 from urlparse import urljoin
@@ -23,10 +24,11 @@ Metadata = namedtuple('Metadata',
 class Mubi(object):
     _URL_MUBI = "https://mubi.com"
     _mubi_urls = {
-        "login": urljoin(_URL_MUBI, "services/android/sessions"),
+        "login": urljoin(_URL_MUBI, "api/v1/sessions"),
         "films": urljoin(_URL_MUBI, "services/android/films"),
         "film": urljoin(_URL_MUBI, "services/android/films/%s"),
-        "viewing": urljoin(_URL_MUBI, "services/android/viewings/%s/secure_url"),
+        "set_reel": urljoin(_URL_MUBI, "api/v1/films/%s/viewing/set_reel"),
+        "get_url": urljoin(_URL_MUBI, "api/v1/films/%s/reels/%s/secure_url"),
         "startup": urljoin(_URL_MUBI, "services/android/app_startup")
     }
 
@@ -38,39 +40,48 @@ class Mubi(object):
         # Need a 20 digit id, hash username to make it predictable
         self._udid = int(hashlib.sha1(username).hexdigest(), 32) % (10 ** 20)
         self._token = None
+        self._userid = None
         self._country = None
+        self._headers = {
+            'client': 'android',
+            'client-app': 'mubi',
+            'client-version': '4.46',
+            'client-device-identifier': str(self._udid)
+        }
         self.login()
 
     def login(self):
-        payload = {'udid': self._udid, 'token': '', 'client': 'android',
-                   'client_version': '4.1.1', 'email': self._username,
-                   'password': self._password}
+        payload = {'email': self._username, 'password': self._password}
         xbmc.log("Logging in with username: %s and udid: %s" % (self._username, self._udid), 2)
-        r = requests.post(self._mubi_urls["login"] + "?client=android", data=payload)
+        r = requests.post(self._mubi_urls["login"], headers=self._headers, data=payload)
+        result = (''.join(r.text)).encode('utf-8')
         if r.status_code == 200:
-            self._token = json.loads(r.text)['token']
-            xbmc.log("Login Successful and got token %s" % self._token, 2)
+            self._token = json.loads(result)['token']
+            self._userid = json.loads(result)['user']['id']
+            self._headers['authorization'] = 'Bearer ' + self._token
+            xbmc.log("Login Successful with token=%s and userid=%s" % (self._token, self._userid), 2)
         else:
-            xbmc.log("Login Failed", 4)
+            xbmc.log("Login Failed with result: %s" % result, 4)
         self.app_startup()
         return r.status_code
 
     def app_startup(self):
         payload = {'udid': self._udid, 'token': self._token, 'client': 'android',
-                   'client_version': '4.1.1'}
+                   'client_version': '4.46'}
         r = requests.post(self._mubi_urls['startup'] + "?client=android", data=payload)
+        result = (''.join(r.text)).encode('utf-8')
         if r.status_code == 200:
-            self._country = json.loads(r.text)['country']
+            self._country = json.loads(result)['country']
             xbmc.log("Successfully got country as %s" % self._country, 2)
         else:
-            xbmc.log("Failed to get country: %s" % r.text, 4)
+            xbmc.log("Failed to get country: %s" % result, 4)
         return
 
     def get_film_page(self, film_id):
         cached = self._simplecache.get(self._cache_id % film_id)
         if cached:
             return json.loads(cached)
-        args = "?client=android&country=%s&token=%s&udid=%s&client_version=4.1.1" % (self._country, self._token, self._udid)
+        args = "?client=android&country=%s&token=%s&udid=%s&client_version=4.46" % (self._country, self._token, self._udid)
         r = requests.get((self._mubi_urls['film'] % str(film_id)) + args)
         if r.status_code != 200:
             xbmc.log("Invalid status code %s getting film info for %s" % (r.status_code, film_id), 4)
@@ -94,7 +105,7 @@ class Mubi(object):
         audio_lang = film_overview['reels'][0]['audio_language']
         subtitle_lang = film_overview['reels'][0]['subtitle_language']
         # Build plot field. Place lang info in here since there is nowhere else for it to go
-        drm_string = "Warning: this film cannot be played since it uses DRM\n" if drm else ""
+        drm_string = "" #"Protected by DRM\n" if drm else ""
         lang_string = ("Language: %s" % audio_lang) + ((", Subtitles: %s\n" % subtitle_lang) if subtitle_lang else "\n")
         plot_string = "Synopsis: %s\n\nOur take: %s" % (film_overview['excerpt'], film_overview['editorial'])
         # Get detailed look at film to get cast info
@@ -122,7 +133,7 @@ class Mubi(object):
 
     def get_now_showing_json(self):
         # Get list of available films
-        args = "?client=android&country=%s&token=%s&udid=%s&client_version=4.1.1" % (self._country, self._token, self._udid)
+        args = "?client=android&country=%s&token=%s&udid=%s&client_version=4.46" % (self._country, self._token, self._udid)
         r = requests.get(self._mubi_urls['films'] + args)
         if r.status_code != 200:
             xbmc.log("Invalid status code %s getting list of films", 4)
@@ -146,12 +157,21 @@ class Mubi(object):
 
     def get_play_url(self, film_id):
         (reel_id, is_drm) = self.get_default_reel_id_is_drm(film_id)
-        args = "?client=android&country=%s&token=%s&udid=%s&client_version=4.1.1&film_id=%s&reel_id=%s&download=false" \
-               % (self._country, self._token, self._udid, film_id, reel_id)
-        r = requests.get((self._mubi_urls['viewing'] % str(film_id)) + args)
+
+        # set reel
+        payload = {'reel_id': reel_id, 'sidecar_subtitle_language_id': 20}
+        r = requests.put((self._mubi_urls['set_reel'] % str(film_id)), data=payload, headers=self._headers)
+        result = (''.join(r.text)).encode('utf-8')
+        xbmc.log("Set reel response: %s" % result, 2)
+
+        # get film url
+        args = "?country=%s&download=false" % (self._country)
+        r = requests.get((self._mubi_urls['get_url'] % (str(film_id), str(reel_id))) + args, headers=self._headers)
+        result = (''.join(r.text)).encode('utf-8')
         if r.status_code != 200:
-            xbmc.log("Could not get secure URL for film %s" % film_id, 4)
-        url = json.loads(r.text)["url"]
+            xbmc.log("Could not get secure URL for film %s with reel_id=%s" % (film_id, reel_id), 4)
+        xbmc.log("Response was: %s" % result, 2)
+        url = json.loads(result)["url"]
         # For DRM you will have to find the following info:
         # {"userId": long(result['username']), "sessionId": result['transaction'], "merchant": result['accountCode']}
         # This might need optdata in header however looking in requests during browser negotiation I don't see it
@@ -159,6 +179,6 @@ class Mubi(object):
         # The best conversation for this is:
         # https://github.com/emilsvennesson/kodi-viaplay/issues/9
         # You can pick this conversation up using Android Packet Capture
-        item_result = {'url': url, 'is_mpd': "mpd" in url, 'is_drm': is_drm}
+        item_result = {'url': url, 'is_mpd': "mpd" in url, 'is_drm': is_drm, 'drm_header': base64.b64encode('{"userId":' + str(self._userid) + ',"sessionId":"' + self._token + '","merchant":"mubi"}')}
         xbmc.log("Got video info as: '%s'" % json.dumps(item_result), 2)
         return item_result

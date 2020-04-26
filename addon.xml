@@ -2,6 +2,7 @@
 <addon id="plugin.video.mubi" name="MUBI" version="0.8" provider-name="Jamie Unwin">
   <requires>
     <import addon="xbmc.python" version="2.1.0"/>
+    <import addon="script.module.inputstreamhelper" version="0.4.5"/>
     <import addon="script.module.kodiswift" version="0.0.8"/>
     <import addon="script.module.requests" version="2.12.4"/>
     <import addon="script.module.dateutil" version="2.5.3"/>
