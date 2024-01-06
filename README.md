@@ -9,7 +9,7 @@ Happy to accept a PR if someone wants to try and get it working again, but I no 
 
 Plugin to stream video from MUBI.com within Kodi / XBMC.
 
-A [MUBI](https://www.mubi.com) account is required to use this plugin.
+A [MUBI](https://mubi.com/t/web/global/1g594tx) account is required to use this plugin.
 
 ## Notes
 
